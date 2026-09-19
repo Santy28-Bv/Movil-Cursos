@@ -1,0 +1,31 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+coverage/
+
+# Gradle
+.gradle/
+**/.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+*.lock.lck
+
+# Android
+local.properties
+key.properties
+*.keystore
+*.jks
+
+# Archivos de configuración privados
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.iml
