@@ -72,9 +72,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _openRegister() async {
-    final loggedIn = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const RegisterScreen()),
-    );
+    final loggedIn = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const RegisterScreen()));
 
     // Si el registro creó una sesión, volvemos al Home público.
     // Si se requiere confirmar el correo, permanecemos en Login.
@@ -195,3 +195,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+
+//login funcional aaa
+//lol
