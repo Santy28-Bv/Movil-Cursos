@@ -29,3 +29,11 @@ key.properties
 .idea/
 .vscode/
 *.iml
+# Gradle generado localmente
+**/.gradle/
+android/.gradle/
+
+# Configuraciones privadas
+.env
+.env.*
+!.env.example

@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../config/learning_schema.dart';
 import '../../models/course.dart';
+import '../../repositories/learning_repository.dart';
 import '../../services/demo_learning_store.dart';
 import '../../theme/academix_colors.dart';
 import '../auth/login_screen.dart';
 import 'lesson_screen.dart';
 
-/// Detalle público: el temario puede verse sin sesión; aprender requiere login.
+/// Los visitantes pueden consultar el detalle público.
+/// La inscripción y las lecciones requieren sesión y autorización.
 class CourseDetailScreen extends StatefulWidget {
   const CourseDetailScreen({super.key, required this.course});
   final Course course;
@@ -18,46 +21,98 @@ class CourseDetailScreen extends StatefulWidget {
 
 class _CourseDetailScreenState extends State<CourseDetailScreen> {
   final store = DemoLearningStore.instance;
+  late final SupabaseLearningRepository repository;
+  late Future<List<CourseModule>> _modulesFuture;
+  bool _realEnrolled = false;
+  bool _checking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    repository = SupabaseLearningRepository(Supabase.instance.client);
+    _modulesFuture = widget.course.isDemo
+        ? Future.value(widget.course.modules)
+        : repository.getModules(widget.course.id);
+    _refreshEnrollment();
+  }
+
+  Future<void> _refreshEnrollment() async {
+    if (widget.course.isDemo || !LearningSchema.enabled ||
+        Supabase.instance.client.auth.currentUser == null) return;
+    try {
+      final enrolled = await repository.isEnrolled(widget.course.id);
+      if (mounted) setState(() => _realEnrolled = enrolled);
+    } catch (_) {
+      // El error se mostrará cuando el estudiante intente inscribirse.
+    }
+  }
+
+  void _notice(String msg) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg)));
+  }
 
   Future<void> _enrollOrLearn() async {
+    if (_checking) return;
     if (Supabase.instance.client.auth.currentUser == null) {
       await Navigator.of(context).push<bool>(
           MaterialPageRoute(builder: (_) => const LoginScreen()));
       if (!mounted || Supabase.instance.client.auth.currentUser == null) return;
-      setState(() {});
+      setState(() {
+        if (!widget.course.isDemo && LearningSchema.enabled) {
+          // Volver a consultar el temario con el JWT recién autenticado.
+          _modulesFuture = repository.getModules(widget.course.id);
+        }
+      });
+      await _refreshEnrollment();
     }
 
-    if (!widget.course.isDemo) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('La inscripción real necesita configurar las tablas y permisos de Supabase.'),
-      ));
+    if (widget.course.isDemo) {
+      if (!store.isEnrolled(widget.course.id)) {
+        final accept = await showDialog<bool>(context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Inscripción de demostración'),
+            content: const Text('No es un pago ni una inscripción real. El avance y las respuestas '
+                'se guardan solo en la memoria de esta ejecución.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancelar')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Probar demo')),
+            ],
+          ),
+        );
+        if (accept != true || !mounted) return;
+        store.enroll(widget.course);
+        setState(() {});
+      }
+      _notice('Abre una lección del temario para comenzar (demo).');
       return;
     }
-
-    if (!store.isEnrolled(widget.course.id)) {
-      final accept = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Inscripción de demostración'),
-          content: const Text('Este curso procede del catálogo de ejemplo de CursosWeb. '
-              'La inscripción y el avance se guardan solo mientras está abierta la aplicación; '
-              'no se registra ninguna compra ni inscripción en Supabase.'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(context, true),
-                child: const Text('Probar demo')),
-          ],
-        ),
-      );
-      if (accept != true || !mounted) return;
-      store.enroll(widget.course);
-      setState(() {});
+    if (!LearningSchema.enabled) {
+      _notice('Falta verificar la tabla de inscripciones y los permisos RLS.');
+      return;
     }
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('Modo demostración: abre una lección del temario para practicar.'),
-    ));
+    if (_realEnrolled) {
+      _notice('Ya estás inscrito. Selecciona una lección para continuar.');
+      return;
+    }
+    if (widget.course.price != 0) {
+      _notice('Los cursos de pago requieren una compra validada. No se inscribió al usuario.');
+      return;
+    }
+    setState(() => _checking = true);
+    try {
+      await repository.enrollFree(widget.course);
+      if (mounted) {
+        setState(() => _realEnrolled = true);
+        _notice('Inscripción gratuita registrada en Supabase.');
+      }
+    } catch (e) {
+      _notice('No se pudo registrar la inscripción: $e');
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
   }
 
   @override
@@ -71,10 +126,11 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
       body: AnimatedBuilder(
         animation: store,
         builder: (context, _) {
-          final enrolled = signedIn && store.isEnrolled(course.id);
+          final enrolled = signedIn && (course.isDemo
+              ? store.isEnrolled(course.id) : _realEnrolled);
           return ListView(padding: const EdgeInsets.all(20), children: [
             if (course.isDemo)
-              const _InfoBanner('CATÁLOGO DEMO · Basado en CursosWeb. No hay compras ni inscripciones reales.'),
+              const _InfoBanner('CATÁLOGO DEMO · Basado en CursosWeb. No hay pagos ni inscripciones reales.'),
             Text(course.category.toUpperCase(),
                 style: const TextStyle(color: AcademixColors.lavender,
                     fontWeight: FontWeight.bold)),
@@ -90,8 +146,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
               if (course.level.isNotEmpty) Chip(label: Text(course.level)),
               if (course.durationHours > 0)
                 Chip(label: Text('${course.durationHours} horas')),
-              if (course.rating > 0)
-                Chip(label: Text('★ ${course.rating}')),
+              if (course.rating > 0) Chip(label: Text('★ ${course.rating}')),
             ]),
             if (course.instructor.isNotEmpty) ...[
               const SizedBox(height: 10),
@@ -100,13 +155,14 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
             ],
             const SizedBox(height: 20),
             SizedBox(width: double.infinity, child: FilledButton.icon(
-              onPressed: _enrollOrLearn,
+              onPressed: _checking ? null : _enrollOrLearn,
               icon: Icon(!signedIn ? Icons.login :
                   enrolled ? Icons.check_circle_outline : Icons.school_outlined),
-              label: Text(!signedIn ? 'Iniciar sesión para inscribirse' :
-                  enrolled ? 'Inscrito en demo' :
+              label: Text(_checking ? 'Registrando...' :
+                  !signedIn ? 'Iniciar sesión para inscribirse' :
+                  enrolled ? 'Continuar aprendiendo' :
                   course.isDemo ? 'Probar inscripción (demo)' :
-                  'Consultar inscripción'),
+                  course.price == 0 ? 'Inscribirme gratis' : 'Consultar acceso'),
               style: FilledButton.styleFrom(
                   backgroundColor: AcademixColors.purple,
                   padding: const EdgeInsets.symmetric(vertical: 15)),
@@ -130,34 +186,48 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
             const Text('Contenido del curso', style: TextStyle(
                 color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            if (course.modules.isEmpty)
-              const Text('El temario y las tareas aún no están disponibles en la base de datos.',
-                  style: TextStyle(color: AcademixColors.muted)),
-            ...course.modules.map((module) => Card(
-              color: AcademixColors.card,
-              child: ExpansionTile(
-                iconColor: AcademixColors.lavender,
-                collapsedIconColor: Colors.white70,
-                title: Text(module.title, style: const TextStyle(color: Colors.white)),
-                children: module.lessons.map((lesson) {
-                  final done = store.isCompleted('${course.id}/${lesson.id}');
-                  return ListTile(
-                    leading: Icon(done ? Icons.check_circle :
-                        enrolled ? Icons.play_circle_outline : Icons.lock_outline,
-                        color: AcademixColors.lavender),
-                    title: Text(lesson.title, style: const TextStyle(color: Colors.white70)),
-                    subtitle: Text('${lesson.durationMinutes} min',
-                        style: const TextStyle(color: AcademixColors.muted)),
-                    onTap: enrolled ? () => Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => LessonScreen(
-                          course: course, lesson: lesson,
-                        ))) : () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Inicia sesión e inscríbete a la demo para abrir lecciones.')),
-                    ),
-                  );
-                }).toList(),
-              ),
-            )),
+            FutureBuilder<List<CourseModule>>(
+              future: _modulesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return const Text('No fue posible obtener el temario desde Supabase. '
+                      'Revisa las tablas y las políticas de acceso.',
+                      style: TextStyle(color: Colors.white70));
+                }
+                final modules = snapshot.data ?? [];
+                if (modules.isEmpty) {
+                  return const Text('Todavía no hay módulos disponibles o el esquema real '
+                      'no está configurado.', style: TextStyle(color: AcademixColors.muted));
+                }
+                return Column(children: modules.map((module) => Card(
+                  color: AcademixColors.card,
+                  child: ExpansionTile(
+                    iconColor: AcademixColors.lavender,
+                    collapsedIconColor: Colors.white70,
+                    title: Text(module.title, style: const TextStyle(color: Colors.white)),
+                    children: module.lessons.map((lesson) {
+                      final done = course.isDemo && store.isCompleted('${course.id}/${lesson.id}');
+                      return ListTile(
+                        leading: Icon(done ? Icons.check_circle :
+                            enrolled ? Icons.play_circle_outline : Icons.lock_outline,
+                            color: AcademixColors.lavender),
+                        title: Text(lesson.title, style: const TextStyle(color: Colors.white70)),
+                        subtitle: Text(lesson.durationMinutes > 0
+                            ? '${lesson.durationMinutes} min' : 'Lección',
+                            style: const TextStyle(color: AcademixColors.muted)),
+                        onTap: enrolled ? () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => LessonScreen(
+                              course: course, lesson: lesson,
+                            ))) : () => _notice('Inicia sesión e inscríbete para abrir las lecciones.'),
+                      );
+                    }).toList(),
+                  ),
+                )).toList());
+              },
+            ),
             const SizedBox(height: 26),
           ]);
         },
