@@ -7,6 +7,10 @@ class AccountMenuSheet extends StatelessWidget {
   final VoidCallback onSignOut;
   final VoidCallback onSwitchAccount;
   final VoidCallback onMyCourses;
+  final VoidCallback? onInformation;
+  final VoidCallback? onCertificates;
+  final VoidCallback? onNotifications;
+  final VoidCallback? onCart;
 
   const AccountMenuSheet({
     super.key,
@@ -15,6 +19,10 @@ class AccountMenuSheet extends StatelessWidget {
     required this.onSignOut,
     required this.onSwitchAccount,
     required this.onMyCourses,
+    this.onInformation,
+    this.onCertificates,
+    this.onNotifications,
+    this.onCart,
   });
 
   void _closeAndRun(BuildContext context, VoidCallback action) {
@@ -150,8 +158,11 @@ class AccountMenuSheet extends StatelessWidget {
             _menuTile(
               icon: Icons.person_outline,
               title: 'Mi información',
-              subtitle: 'Consultar datos de mi cuenta',
-              onTap: () => _showInformation(context),
+              subtitle: 'Consultar y actualizar mis datos',
+              onTap:
+                  onInformation == null
+                      ? () => _showInformation(context)
+                      : () => _closeAndRun(context, onInformation!),
             ),
 
             _menuTile(
@@ -163,6 +174,25 @@ class AccountMenuSheet extends StatelessWidget {
 
             const Divider(color: AcademixColors.border),
             const SizedBox(height: 8),
+
+            if (onCart != null)
+              _menuTile(
+                icon: Icons.shopping_cart_outlined,
+                title: 'Mi carrito',
+                onTap: () => _closeAndRun(context, onCart!),
+              ),
+            if (onCertificates != null)
+              _menuTile(
+                icon: Icons.workspace_premium_outlined,
+                title: 'Mis certificados',
+                onTap: () => _closeAndRun(context, onCertificates!),
+              ),
+            if (onNotifications != null)
+              _menuTile(
+                icon: Icons.notifications_outlined,
+                title: 'Notificaciones',
+                onTap: () => _closeAndRun(context, onNotifications!),
+              ),
 
             _menuTile(
               icon: Icons.switch_account_outlined,

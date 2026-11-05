@@ -12,7 +12,7 @@ android {
     compileSdk = flutter.compileSdkVersion
 
     // Versión NDK compatible con los plugins
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

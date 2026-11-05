@@ -15,7 +15,7 @@ class HomeStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.fromLTRB(20, 23, 20, 22),
-        color: AcademixColors.card.withOpacity(.6),
+        color: AcademixColors.card.withValues(alpha: .6),
         child: LayoutBuilder(
           builder: (context, limits) {
             final width = (limits.maxWidth - 12) / 2;

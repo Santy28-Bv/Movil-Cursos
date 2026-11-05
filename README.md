@@ -11,6 +11,8 @@ confirmación del esquema de base de datos antes de habilitarse.
 
 - `INTEGRACION_SUPABASE_PENDIENTE.md`: cómo conectar tablas/videos y permisos.
 - `PENDIENTES_HISTORIAS_USUARIO.md`: seguimiento por historia.
+- `INTEGRACION_ESTUDIANTE.md`: alcance actualizado HU-M07 a HU-M14,
+  perfil, carrito, panel, avisos, reseñas, certificados y contrato de integración.
 
 Ejecutar:
 

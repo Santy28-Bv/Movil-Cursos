@@ -7,6 +7,14 @@ import '../controllers/course_feed_controller.dart';
 import '../screens/courses/course_detail_screen.dart';
 import '../screens/courses/my_courses_screen.dart';
 import '../services/demo_learning_store.dart';
+import '../services/student_session.dart';
+import '../config/student_schema.dart';
+import '../repositories/student_repository.dart';
+import '../widgets/student/student_guard.dart';
+import 'student/cart_screen.dart';
+import 'student/profile_screen.dart';
+import 'student/certificates_screen.dart';
+import 'student/notifications_screen.dart';
 import '../models/course.dart';
 import '../repositories/course_repository.dart';
 import 'auth/login_screen.dart';
@@ -70,6 +78,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final auth = Supabase.instance.client.auth;
     _activeUserId = auth.currentUser?.id;
     _isAuthenticated = _activeUserId != null;
+    StudentSession.instance.bindUser(_activeUserId);
+    StudentSession.instance.addListener(_studentChanged);
+    _refreshNotices();
     _authSubscription = auth.onAuthStateChange.listen((state) {
       if (!mounted) return;
       final signedIn = state.session?.user != null;
@@ -78,6 +89,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _activeUserId = nextUserId;
         // No mezclar matrícula o tareas de una cuenta con otra.
         DemoLearningStore.instance.clear();
+        StudentSession.instance.bindUser(nextUserId);
+        _refreshNotices();
         _courseRepository.resetSource();
         setState(() => _isAuthenticated = signedIn);
         _feed.refresh();
@@ -85,6 +98,31 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     _feed.loadMore();
+  }
+
+  void _studentChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _refreshNotices() async {
+    if (!StudentSchema.enabled || _activeUserId == null) return;
+    try {
+      await StudentSession.instance.refreshNotices(
+        StudentRepository(Supabase.instance.client).notifications,
+      );
+    } catch (_) {
+      // La pantalla de avisos permite reintentar y muestra el error de consulta.
+    }
+  }
+
+  void _openStudent(WidgetBuilder builder) {
+    if (!_isAuthenticated) {
+      _openAccountMenu();
+      return;
+    }
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => StudentGuard(builder: builder)));
   }
 
   // =====================================================
@@ -152,21 +190,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Mensaje para funcionalidades pendientes.
-  void _comingSoon(String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label estará disponible próximamente.')),
-    );
-  }
-
   // =====================================================
   // AUTENTICACIÓN Y MENÚ DE CUENTA
   // =====================================================
 
   void _openLogin() {
-    Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(builder: (_) => const LoginScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute<bool>(builder: (_) => const LoginScreen()));
   }
 
   void _openRegister() {
@@ -187,9 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _openAccountMenu();
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const MyCoursesScreen()),
-    );
+    _openStudent((_) => const MyCoursesScreen());
   }
 
   void _openAccountMenu() {
@@ -206,16 +235,17 @@ class _HomeScreenState extends State<HomeScreen> {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        builder: (sheetContext) => GuestAccountSheet(
-          onLogin: () {
-            Navigator.of(sheetContext).pop();
-            _openLogin();
-          },
-          onRegister: () {
-            Navigator.of(sheetContext).pop();
-            _openRegister();
-          },
-        ),
+        builder:
+            (sheetContext) => GuestAccountSheet(
+              onLogin: () {
+                Navigator.of(sheetContext).pop();
+                _openLogin();
+              },
+              onRegister: () {
+                Navigator.of(sheetContext).pop();
+                _openRegister();
+              },
+            ),
       );
       return;
     }
@@ -233,13 +263,20 @@ class _HomeScreenState extends State<HomeScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => AccountMenuSheet(
-        name: fullName.isEmpty ? 'Usuario Academix' : fullName,
-        email: user.email ?? '',
-        onMyCourses: _openMyCourses,
-        onSignOut: () => _signOut(),
-        onSwitchAccount: () => _signOut(switchAccount: true),
-      ),
+      builder:
+          (_) => AccountMenuSheet(
+            name: fullName.isEmpty ? 'Usuario Academix' : fullName,
+            email: user.email ?? '',
+            onMyCourses: _openMyCourses,
+            onInformation: () => _openStudent((_) => const ProfileScreen()),
+            onCart: () => _openStudent((_) => const CartScreen()),
+            onCertificates:
+                () => _openStudent((_) => const CertificatesScreen()),
+            onNotifications:
+                () => _openStudent((_) => const NotificationsScreen()),
+            onSignOut: () => _signOut(),
+            onSwitchAccount: () => _signOut(switchAccount: true),
+          ),
     );
   }
 
@@ -268,9 +305,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showCourse(Course course) {
     // Información pública: el detalle no requiere iniciar sesión.
     // La inscripción y las lecciones se protegen dentro del detalle.
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => CourseDetailScreen(course: course),
-    ));
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => CourseDetailScreen(course: course)),
+    );
   }
 
   // =====================================================
@@ -280,6 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _authSubscription.cancel();
+    StudentSession.instance.removeListener(_studentChanged);
     _feed.removeListener(_afterFeedUpdate);
     _feed.dispose();
 
@@ -307,6 +345,8 @@ class _HomeScreenState extends State<HomeScreen> {
         onProfile: _openAccountMenu,
         onMyCourses: _openMyCourses,
         isAuthenticated: _isAuthenticated,
+        onCart: () => _openStudent((_) => const CartScreen()),
+        cartCount: StudentSession.instance.cart.length,
       ),
 
       body: SafeArea(
@@ -334,6 +374,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         HomeHeader(
                           onProfile: _openAccountMenu,
                           isAuthenticated: _isAuthenticated,
+                          onNotifications:
+                              () => _openStudent(
+                                (_) => const NotificationsScreen(),
+                              ),
+                          unreadCount: StudentSession.instance.unreadCount,
                         ),
 
                         // Portada.
@@ -363,12 +408,18 @@ class _HomeScreenState extends State<HomeScreen> {
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF38254D),
-                                border: Border.all(color: AcademixColors.purple),
+                                border: Border.all(
+                                  color: AcademixColors.purple,
+                                ),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Text(_feed.notice ?? 'Catálogo de demostración',
-                                  style: const TextStyle(color: Colors.white70,
-                                      fontSize: 12)),
+                              child: Text(
+                                _feed.notice ?? 'Catálogo de demostración',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
                             ),
                           ),
                       ],

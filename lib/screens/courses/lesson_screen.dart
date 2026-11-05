@@ -3,10 +3,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/learning_schema.dart';
+import '../../config/student_schema.dart';
 import '../../models/course.dart';
 import '../../repositories/learning_repository.dart';
 import '../../services/demo_learning_store.dart';
 import '../../services/lesson_video_service.dart';
+import '../../services/lesson_resource_service.dart';
+import '../../repositories/student_repository.dart';
 import '../../theme/academix_colors.dart';
 import '../../widgets/courses/lesson_video_player.dart';
 
@@ -29,24 +32,74 @@ class _LessonScreenState extends State<LessonScreen> {
   late final Future<List<Map<String, dynamic>>> _tasks;
   late final Future<Uri?> _video;
   bool _submitting = false;
+  bool _savingProgress = false;
+  bool _completed = false;
+  String? _progressError;
 
   @override
   void initState() {
     super.initState();
     repository = SupabaseLearningRepository(Supabase.instance.client);
     if (widget.course.isDemo) {
-      _answer.text = store.responseFor('${widget.course.id}/${widget.lesson.id}') ?? '';
+      _answer.text =
+          store.responseFor('${widget.course.id}/${widget.lesson.id}') ?? '';
       _access = Future.value(store.isEnrolled(widget.course.id));
       _tasks = Future.value([]);
       _video = Future.value(null);
     } else {
       _access = repository.isEnrolled(widget.course.id);
       // No consultar tareas ni firmar URLs de video hasta verificar matrícula.
-      _tasks = _access.then((allowed) => allowed
-          ? repository.getTasks(widget.lesson.id) : <Map<String, dynamic>>[]);
-      _video = _access.then((allowed) => allowed
-          ? LessonVideoService(Supabase.instance.client).resolve(widget.lesson)
-          : null);
+      _tasks = _access.then(
+        (allowed) =>
+            allowed
+                ? repository.getTasks(widget.lesson.id)
+                : <Map<String, dynamic>>[],
+      );
+      _video = _access.then(
+        (allowed) =>
+            allowed
+                ? LessonVideoService(
+                  Supabase.instance.client,
+                ).resolve(widget.lesson)
+                : null,
+      );
+      if (StudentSchema.enabled) _loadProgress();
+    }
+  }
+
+  Future<void> _loadProgress() async {
+    try {
+      if (!await _access) return;
+      final ids = await StudentRepository(
+        Supabase.instance.client,
+      ).completedLessons(widget.course.id);
+      if (mounted) setState(() => _completed = ids.contains(widget.lesson.id));
+    } catch (_) {
+      if (mounted) {
+        setState(() => _progressError = 'No se pudo consultar el progreso.');
+      }
+    }
+  }
+
+  Future<void> _completeReal() async {
+    if (_savingProgress) return;
+    setState(() => _savingProgress = true);
+    try {
+      await StudentRepository(
+        Supabase.instance.client,
+      ).completeLesson(widget.course.id, widget.lesson.id);
+      if (!mounted) return;
+      setState(() {
+        _completed = true;
+        _progressError = null;
+      });
+      _message('Tu progreso se guardó.');
+    } catch (_) {
+      if (mounted) {
+        _message('No se pudo guardar el progreso. Intenta nuevamente.');
+      }
+    } finally {
+      if (mounted) setState(() => _savingProgress = false);
     }
   }
 
@@ -72,18 +125,25 @@ class _LessonScreenState extends State<LessonScreen> {
     }
   }
 
-  void _message(String text) => ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(text)),
-  );
+  void _message(String text) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
   Future<void> _openResource() async {
-    final uri = Uri.tryParse(widget.lesson.resourceUrl);
-    if (uri == null || uri.scheme != 'https') {
-      _message('Recurso no disponible.');
-      return;
-    }
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && mounted) {
-      _message('No se pudo abrir el recurso.');
+    try {
+      final uri = await LessonResourceService(
+        Supabase.instance.client,
+      ).resolve(widget.course.id, widget.lesson);
+      if (!mounted) return;
+      if (uri == null) {
+        _message('Recurso no disponible.');
+        return;
+      }
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+          mounted) {
+        _message('No se pudo abrir el recurso.');
+      }
+    } catch (_) {
+      if (mounted) _message('No se pudo abrir el recurso con tu autorización.');
     }
   }
 
@@ -93,141 +153,265 @@ class _LessonScreenState extends State<LessonScreen> {
     final demo = widget.course.isDemo;
     return Scaffold(
       backgroundColor: AcademixColors.background,
-      appBar: AppBar(backgroundColor: AcademixColors.card,
-          foregroundColor: Colors.white,
-          title: Text(demo ? 'Aula de demostración' : 'Aula Academix')),
+      appBar: AppBar(
+        backgroundColor: AcademixColors.card,
+        foregroundColor: Colors.white,
+        title: Text(demo ? 'Aula de demostración' : 'Aula Academix'),
+      ),
       body: FutureBuilder<bool>(
         future: _access,
         builder: (context, access) {
           if (access.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (access.hasError || access.data != true ||
+          if (access.hasError ||
+              access.data != true ||
               Supabase.instance.client.auth.currentUser == null) {
-            return const Center(child: Padding(padding: EdgeInsets.all(24),
-              child: Text('No tienes una inscripción activa para abrir esta lección.',
-                style: TextStyle(color: Colors.white70), textAlign: TextAlign.center)));
-          }
-          return ListView(padding: const EdgeInsets.all(20), children: [
-            if (demo) const Text('MODO DEMO · No se guarda en Supabase',
-                style: TextStyle(color: AcademixColors.lavender,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Text(lesson.title, style: const TextStyle(color: Colors.white,
-                fontSize: 25, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            if (lesson.durationMinutes > 0)
-              Text('${lesson.durationMinutes} minutos',
-                  style: const TextStyle(color: AcademixColors.muted)),
-            const SizedBox(height: 20),
-            if (!demo && (lesson.videoUrl.isNotEmpty || lesson.videoPath.isNotEmpty))
-              FutureBuilder<Uri?>(
-                future: _video,
-                builder: (context, video) {
-                  if (video.connectionState != ConnectionState.done) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (video.hasError || video.data == null) {
-                    return const Text('El video no está disponible para esta sesión.',
-                        style: TextStyle(color: Colors.white70));
-                  }
-                  return LessonVideoPlayer(uri: video.data!);
-                },
-              )
-            else
-              Text(demo
-                ? 'Esta lección de demostración no tiene video real.'
-                : 'Esta lección no tiene un video asociado en la base de datos.',
-                style: const TextStyle(color: AcademixColors.muted)),
-            if (lesson.description.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text(lesson.description, style: const TextStyle(
-                  color: Colors.white70, height: 1.5)),
-            ],
-            if (!demo && lesson.resourceUrl.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              OutlinedButton.icon(onPressed: _openResource,
-                icon: const Icon(Icons.attach_file), label: const Text('Abrir recurso')),
-            ],
-            const SizedBox(height: 25),
-            if (demo && lesson.task.isNotEmpty) ...[
-              const Text('Actividad de práctica (demo)', style: TextStyle(
-                  color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Text(lesson.task, style: const TextStyle(color: Colors.white70)),
-              const SizedBox(height: 12),
-              _answerField(),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () {
-                  if (_answer.text.trim().isEmpty) {
-                    _message('Escribe una respuesta antes de guardarla.');
-                    return;
-                  }
-                  store.submitDemoTask(widget.course.id, lesson.id, _answer.text);
-                  _message('Respuesta guardada temporalmente (demo).');
-                },
-                icon: const Icon(Icons.send_outlined),
-                label: const Text('Guardar respuesta demo'),
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'No tienes una inscripción activa para abrir esta lección.',
+                  style: TextStyle(color: Colors.white70),
+                  textAlign: TextAlign.center,
+                ),
               ),
-            ],
-            if (!demo) FutureBuilder<List<Map<String, dynamic>>>(
-              future: _tasks,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return const Text('No se pudieron consultar las actividades.',
-                    style: TextStyle(color: Colors.white70));
-                }
-                final tasks = snapshot.data ?? [];
-                if (tasks.isEmpty) {
-                  return const Text('Sin actividades configuradas para esta lección.',
-                    style: TextStyle(color: AcademixColors.muted));
-                }
-                // La escritura solo se permite si el esquema de entregas fue validado.
-                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Tareas', style: TextStyle(color: Colors.white,
-                      fontSize: 20, fontWeight: FontWeight.bold)),
-                  ...tasks.map((task) => Card(
-                    color: AcademixColors.card,
-                    child: Padding(padding: const EdgeInsets.all(14), child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text((task['title'] ?? task['titulo'] ?? 'Actividad').toString(),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 6),
-                        Text((task['description'] ?? task['descripcion'] ?? '').toString(),
-                            style: const TextStyle(color: Colors.white70)),
-                        const SizedBox(height: 12),
-                        _answerField(),
-                        const SizedBox(height: 12),
-                        FilledButton.icon(
-                          onPressed: _submitting || !LearningSchema.submissionsEnabled
-                            ? null : () => _submitReal((task['id'] ?? task['id_tarea']).toString()),
-                          icon: const Icon(Icons.send),
-                          label: const Text('Entregar tarea'),
+            );
+          }
+          return ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              if (demo)
+                const Text(
+                  'MODO DEMO · No se guarda en Supabase',
+                  style: TextStyle(
+                    color: AcademixColors.lavender,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Text(
+                lesson.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 25,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (lesson.durationMinutes > 0)
+                Text(
+                  '${lesson.durationMinutes} minutos',
+                  style: const TextStyle(color: AcademixColors.muted),
+                ),
+              const SizedBox(height: 20),
+              if (!demo &&
+                  (lesson.videoUrl.isNotEmpty || lesson.videoPath.isNotEmpty))
+                FutureBuilder<Uri?>(
+                  future: _video,
+                  builder: (context, video) {
+                    if (video.connectionState != ConnectionState.done) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (video.hasError || video.data == null) {
+                      return const Text(
+                        'El video no está disponible para esta sesión.',
+                        style: TextStyle(color: Colors.white70),
+                      );
+                    }
+                    return LessonVideoPlayer(uri: video.data!);
+                  },
+                )
+              else
+                Text(
+                  demo
+                      ? 'Esta lección de demostración no tiene video real.'
+                      : 'Esta lección no tiene un video asociado en la base de datos.',
+                  style: const TextStyle(color: AcademixColors.muted),
+                ),
+              if (lesson.description.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text(
+                  lesson.description,
+                  style: const TextStyle(color: Colors.white70, height: 1.5),
+                ),
+              ],
+              if (!demo &&
+                  (lesson.resourceUrl.isNotEmpty ||
+                      lesson.resourcePath.isNotEmpty)) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _openResource,
+                  icon: const Icon(Icons.attach_file),
+                  label: const Text('Abrir recurso'),
+                ),
+              ],
+              const SizedBox(height: 25),
+              if (!demo) ...[
+                if (_progressError != null) Text(_progressError!),
+                FilledButton.tonalIcon(
+                  onPressed:
+                      !StudentSchema.enabled || _savingProgress || _completed
+                          ? null
+                          : _completeReal,
+                  icon: Icon(
+                    _completed
+                        ? Icons.check_circle
+                        : Icons.check_circle_outline,
+                  ),
+                  label: Text(
+                    _completed
+                        ? 'Lección completada'
+                        : _savingProgress
+                        ? 'Guardando…'
+                        : 'Marcar lección completada',
+                  ),
+                ),
+                if (!StudentSchema.enabled)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 10),
+                    child: Text(
+                      'El guardado de progreso aún no está conectado al servidor.',
+                    ),
+                  ),
+              ],
+              if (demo && lesson.task.isNotEmpty) ...[
+                const Text(
+                  'Actividad de práctica (demo)',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  lesson.task,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                _answerField(),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: () {
+                    if (_answer.text.trim().isEmpty) {
+                      _message('Escribe una respuesta antes de guardarla.');
+                      return;
+                    }
+                    store.submitDemoTask(
+                      widget.course.id,
+                      lesson.id,
+                      _answer.text,
+                    );
+                    _message('Respuesta guardada temporalmente (demo).');
+                  },
+                  icon: const Icon(Icons.send_outlined),
+                  label: const Text('Guardar respuesta demo'),
+                ),
+              ],
+              if (!demo)
+                FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _tasks,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return const Text(
+                        'No se pudieron consultar las actividades.',
+                        style: TextStyle(color: Colors.white70),
+                      );
+                    }
+                    final tasks = snapshot.data ?? [];
+                    if (tasks.isEmpty) {
+                      return const Text(
+                        'Sin actividades configuradas para esta lección.',
+                        style: TextStyle(color: AcademixColors.muted),
+                      );
+                    }
+                    // La escritura solo se permite si el esquema de entregas fue validado.
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Tareas',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        ...tasks.map(
+                          (task) => Card(
+                            color: AcademixColors.card,
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    (task['title'] ??
+                                            task['titulo'] ??
+                                            'Actividad')
+                                        .toString(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    (task['description'] ??
+                                            task['descripcion'] ??
+                                            '')
+                                        .toString(),
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _answerField(),
+                                  const SizedBox(height: 12),
+                                  FilledButton.icon(
+                                    onPressed:
+                                        _submitting ||
+                                                !LearningSchema
+                                                    .submissionsEnabled
+                                            ? null
+                                            : () => _submitReal(
+                                              (task['id'] ?? task['id_tarea'])
+                                                  .toString(),
+                                            ),
+                                    icon: const Icon(Icons.send),
+                                    label: const Text('Entregar tarea'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                       ],
-                    )),
-                  )),
-                ]);
-              },
-            ),
-            if (demo) ...[
-              const SizedBox(height: 16),
-              FilledButton.tonalIcon(
-                onPressed: () {
-                  store.complete(widget.course.id, lesson.id);
-                  _message('Lección completada (solo demo).');
-                  setState(() {});
-                },
-                icon: Icon(store.isCompleted('${widget.course.id}/${lesson.id}')
-                    ? Icons.check_circle : Icons.check_circle_outline),
-                label: const Text('Marcar lección completada'),
-              ),
+                    );
+                  },
+                ),
+              if (demo) ...[
+                const SizedBox(height: 16),
+                FilledButton.tonalIcon(
+                  onPressed: () {
+                    store.complete(widget.course.id, lesson.id);
+                    _message('Lección completada (solo demo).');
+                    setState(() {});
+                  },
+                  icon: Icon(
+                    store.isCompleted('${widget.course.id}/${lesson.id}')
+                        ? Icons.check_circle
+                        : Icons.check_circle_outline,
+                  ),
+                  label: const Text('Marcar lección completada'),
+                ),
+              ],
             ],
-          ]);
+          );
         },
       ),
     );
@@ -235,10 +419,12 @@ class _LessonScreenState extends State<LessonScreen> {
 
   Widget _answerField() => TextField(
     controller: _answer,
-    minLines: 3, maxLines: 5,
+    minLines: 3,
+    maxLines: 5,
     style: const TextStyle(color: Colors.white),
     decoration: const InputDecoration(
-      labelText: 'Tu respuesta', border: OutlineInputBorder(),
+      labelText: 'Tu respuesta',
+      border: OutlineInputBorder(),
     ),
   );
 }

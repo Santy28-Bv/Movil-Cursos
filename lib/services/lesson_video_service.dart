@@ -23,7 +23,9 @@ class LessonVideoService {
   static Uri? _validatedHttps(String value) {
     final uri = Uri.tryParse(value);
     if (uri == null || uri.scheme != 'https' || uri.host.isEmpty ||
-        uri.userInfo.isNotEmpty) return null;
+        uri.userInfo.isNotEmpty) {
+      return null;
+    }
     return uri;
   }
 }
