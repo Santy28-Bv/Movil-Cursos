@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/models/course.dart';
+import 'package:academix/models/course.dart';
 
 void main() {
   test('cursos del sitio web conservan títulos y carácter demostrativo', () {

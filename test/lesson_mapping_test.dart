@@ -3,6 +3,19 @@ import 'package:academix/config/learning_schema.dart';
 import 'package:academix/models/course.dart';
 
 void main() {
+  test(
+    'recursos privados conservan bucket y ruta sin fabricar enlace público',
+    () {
+      final lesson = CourseLesson.fromJson({
+        'id': 'l1',
+        'resource_bucket': 'privado',
+        'resource_path': 'curso/recurso.pdf',
+      });
+      expect(lesson.resourceBucket, 'privado');
+      expect(lesson.resourcePath, 'curso/recurso.pdf');
+      expect(lesson.resourceUrl, isEmpty);
+    },
+  );
   test('La lección interpreta los campos de video y recursos de Supabase', () {
     final lesson = CourseLesson.fromJson({
       'id': 'leccion-123',
@@ -21,8 +34,11 @@ void main() {
     expect(lesson.isPreview, false);
   });
 
-  test('Los repositorios de escritura real permanecen apagados por defecto', () {
-    expect(LearningSchema.enabled, false);
-    expect(LearningSchema.submissionsEnabled, false);
-  });
+  test(
+    'Los repositorios de escritura real permanecen apagados por defecto',
+    () {
+      expect(LearningSchema.enabled, false);
+      expect(LearningSchema.submissionsEnabled, false);
+    },
+  );
 }

@@ -24,8 +24,8 @@ class HomeHero extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
               decoration: BoxDecoration(
-                color: AcademixColors.purple.withOpacity(.22),
-                border: Border.all(color: AcademixColors.lavender.withOpacity(.45)),
+                color: AcademixColors.purple.withValues(alpha: .22),
+                border: Border.all(color: AcademixColors.lavender.withValues(alpha: .45)),
                 borderRadius: BorderRadius.circular(50),
               ),
               child: const Text('INICIA TU CARRERA TECH HOY',

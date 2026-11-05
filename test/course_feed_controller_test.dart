@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/controllers/course_feed_controller.dart';
-import '../lib/models/course.dart';
-import '../lib/repositories/course_repository.dart';
+import 'package:academix/controllers/course_feed_controller.dart';
+import 'package:academix/models/course.dart';
+import 'package:academix/repositories/course_repository.dart';
 
 class FakeCourses implements CourseRepository {
   FakeCourses(this.items);

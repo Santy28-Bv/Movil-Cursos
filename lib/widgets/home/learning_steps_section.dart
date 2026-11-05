@@ -15,7 +15,7 @@ class LearningStepsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        color: AcademixColors.card.withOpacity(.55),
+        color: AcademixColors.card.withValues(alpha: .55),
         padding: const EdgeInsets.fromLTRB(20, 35, 20, 38),
         child: Column(
           children: [
@@ -42,7 +42,7 @@ class LearningStepsSection extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     CircleAvatar(
-                      backgroundColor: AcademixColors.purple.withOpacity(.23),
+                      backgroundColor: AcademixColors.purple.withValues(alpha: .23),
                       child: Icon(_steps[i].$3, color: AcademixColors.lavender),
                     ),
                     const SizedBox(width: 14),
