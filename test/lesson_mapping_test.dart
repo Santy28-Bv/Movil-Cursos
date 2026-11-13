@@ -1,44 +1,59 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:academix/config/learning_schema.dart';
 import 'package:academix/models/course.dart';
+import 'package:academix/repositories/learning_repository.dart';
 
 void main() {
-  test(
-    'recursos privados conservan bucket y ruta sin fabricar enlace público',
-    () {
-      final lesson = CourseLesson.fromJson({
-        'id': 'l1',
-        'resource_bucket': 'privado',
-        'resource_path': 'curso/recurso.pdf',
-      });
-      expect(lesson.resourceBucket, 'privado');
-      expect(lesson.resourcePath, 'curso/recurso.pdf');
-      expect(lesson.resourceUrl, isEmpty);
-    },
-  );
-  test('La lección interpreta los campos de video y recursos de Supabase', () {
-    final lesson = CourseLesson.fromJson({
-      'id': 'leccion-123',
-      'titulo': 'Introducción',
-      'duracion_minutos': 20,
-      'bucket_video': 'videos-privados',
-      'ruta_video': 'cursos/123/intro.mp4',
-      'descripcion': 'Aprender conceptos básicos',
-      'vista_previa': false,
+  test('aula conserva contenido, avance y ruta protegida del backend web', () {
+    final course = LearningCourse.fromJson({
+      'id': 'c1',
+      'title': 'Dart',
+      'instructorName': 'Ana',
+      'progressPercentage': 50,
+      'modules': [
+        {
+          'id': 'm1',
+          'title': 'Inicio',
+          'lessons': [
+            {
+              'id': 'l1',
+              'title': 'Video',
+              'durationMinutes': 20,
+              'content': 'Contenido real',
+              'isCompleted': true,
+              'resources': [
+                {
+                  'id': 'r1',
+                  'title': 'Introducción',
+                  'type': 'Video',
+                  'url': null,
+                  'contentPath': '/api/v1/lessons/l1/resources/r1/content',
+                  'required': true,
+                },
+              ],
+            },
+          ],
+        },
+      ],
     });
-    expect(lesson.id, 'leccion-123');
-    expect(lesson.title, 'Introducción');
-    expect(lesson.videoBucket, 'videos-privados');
-    expect(lesson.videoPath, 'cursos/123/intro.mp4');
-    expect(lesson.durationMinutes, 20);
-    expect(lesson.isPreview, false);
+    final lesson = course.lessons.single;
+    expect(course.percentage, 50);
+    expect(lesson.content, 'Contenido real');
+    expect(lesson.isCompleted, isTrue);
+    expect(lesson.resources.single.isVideo, isTrue);
+    expect(lesson.resources.single.url, isEmpty);
+    expect(
+      lesson.resources.single.contentPath,
+      '/api/v1/lessons/l1/resources/r1/content',
+    );
   });
-
-  test(
-    'Los repositorios de escritura real permanecen apagados por defecto',
-    () {
-      expect(LearningSchema.enabled, false);
-      expect(LearningSchema.submissionsEnabled, false);
-    },
-  );
+  test('temario público no fabrica contenido ni recursos privados', () {
+    final lesson = CourseLesson.fromJson({
+      'id': 'l1',
+      'title': 'Introducción',
+      'durationMinutes': 12,
+    });
+    expect(lesson.resources, isEmpty);
+    expect(lesson.content, isEmpty);
+    expect(lesson.durationMinutes, 12);
+  });
 }

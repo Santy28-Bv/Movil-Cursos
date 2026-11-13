@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/supabase_settings.dart';
 import 'screens/home_screen.dart';
 import 'theme/academix_theme.dart';
+import 'theme/theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +14,7 @@ Future<void> main() async {
     publishableKey: SupabaseSettings.publishableKey,
   );
 
+  await ThemeController.load();
   runApp(const AcademixApp());
 }
 
@@ -22,10 +24,16 @@ class AcademixApp extends StatelessWidget {
   const AcademixApp({super.key});
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-        title: 'Academix Móvil',
-        debugShowCheckedModeBanner: false,
-        theme: AcademixTheme.dark,
-        home: const HomeScreen(),
-      );
+  Widget build(BuildContext context) => ValueListenableBuilder<ThemeMode>(
+    valueListenable: ThemeController.mode,
+    builder:
+        (context, mode, _) => MaterialApp(
+          title: 'Academix Móvil',
+          debugShowCheckedModeBanner: false,
+          theme: AcademixTheme.light,
+          darkTheme: AcademixTheme.dark,
+          themeMode: mode,
+          home: const HomeScreen(),
+        ),
+  );
 }

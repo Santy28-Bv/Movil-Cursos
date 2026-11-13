@@ -1,430 +1,284 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
-
-import '../../config/learning_schema.dart';
-import '../../config/student_schema.dart';
 import '../../models/course.dart';
 import '../../repositories/learning_repository.dart';
-import '../../services/demo_learning_store.dart';
-import '../../services/lesson_video_service.dart';
-import '../../services/lesson_resource_service.dart';
-import '../../repositories/student_repository.dart';
-import '../../theme/academix_colors.dart';
-import '../../widgets/courses/lesson_video_player.dart';
+import '../../services/academix_api.dart';
+import '../../widgets/courses/lesson_resource.dart';
+import '../student/certificates_screen.dart';
+import '../../widgets/student/student_guard.dart';
 
-/// Aula. Los ejercicios de demo permanecen locales; las entregas reales
-/// requieren que el esquema y las políticas RLS estén confirmados.
 class LessonScreen extends StatefulWidget {
-  const LessonScreen({super.key, required this.course, required this.lesson});
+  const LessonScreen({
+    super.key,
+    required this.course,
+    this.lesson,
+    this.repository,
+  });
   final Course course;
-  final CourseLesson lesson;
-
+  final CourseLesson? lesson;
+  final LearningRepository? repository;
   @override
   State<LessonScreen> createState() => _LessonScreenState();
 }
 
 class _LessonScreenState extends State<LessonScreen> {
-  final _answer = TextEditingController();
-  final store = DemoLearningStore.instance;
-  late final SupabaseLearningRepository repository;
-  late final Future<bool> _access;
-  late final Future<List<Map<String, dynamic>>> _tasks;
-  late final Future<Uri?> _video;
-  bool _submitting = false;
-  bool _savingProgress = false;
-  bool _completed = false;
-  String? _progressError;
-
+  late final LearningRepository _repository;
+  late Future<LearningCourse> _future;
+  String? _activeId;
+  bool _saving = false;
+  String? _error;
   @override
   void initState() {
     super.initState();
-    repository = SupabaseLearningRepository(Supabase.instance.client);
-    if (widget.course.isDemo) {
-      _answer.text =
-          store.responseFor('${widget.course.id}/${widget.lesson.id}') ?? '';
-      _access = Future.value(store.isEnrolled(widget.course.id));
-      _tasks = Future.value([]);
-      _video = Future.value(null);
-    } else {
-      _access = repository.isEnrolled(widget.course.id);
-      // No consultar tareas ni firmar URLs de video hasta verificar matrícula.
-      _tasks = _access.then(
-        (allowed) =>
-            allowed
-                ? repository.getTasks(widget.lesson.id)
-                : <Map<String, dynamic>>[],
-      );
-      _video = _access.then(
-        (allowed) =>
-            allowed
-                ? LessonVideoService(
-                  Supabase.instance.client,
-                ).resolve(widget.lesson)
-                : null,
-      );
-      if (StudentSchema.enabled) _loadProgress();
-    }
+    _repository =
+        widget.repository ?? LearningRepository(Supabase.instance.client);
+    _activeId = widget.lesson?.id;
+    _reload();
   }
 
-  Future<void> _loadProgress() async {
+  void _reload() {
+    _future = _repository.learning(widget.course.id);
+  }
+
+  Future<void> _progress(CourseLesson lesson) async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     try {
-      if (!await _access) return;
-      final ids = await StudentRepository(
-        Supabase.instance.client,
-      ).completedLessons(widget.course.id);
-      if (mounted) setState(() => _completed = ids.contains(widget.lesson.id));
-    } catch (_) {
+      await _repository.setProgress(lesson.id, !lesson.isCompleted);
+      final result = await _repository.learning(widget.course.id);
       if (mounted) {
-        setState(() => _progressError = 'No se pudo consultar el progreso.');
+        setState(() {
+          _future = Future.value(result);
+        });
       }
-    }
-  }
-
-  Future<void> _completeReal() async {
-    if (_savingProgress) return;
-    setState(() => _savingProgress = true);
-    try {
-      await StudentRepository(
-        Supabase.instance.client,
-      ).completeLesson(widget.course.id, widget.lesson.id);
-      if (!mounted) return;
-      setState(() {
-        _completed = true;
-        _progressError = null;
-      });
-      _message('Tu progreso se guardó.');
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        _message('No se pudo guardar el progreso. Intenta nuevamente.');
+        setState(
+          () => _error = studentError(error, 'No pudimos guardar tu progreso.'),
+        );
       }
     } finally {
-      if (mounted) setState(() => _savingProgress = false);
+      if (mounted) setState(() => _saving = false);
     }
   }
 
   @override
-  void dispose() {
-    _answer.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submitReal(String taskId) async {
-    if (_submitting || _answer.text.trim().isEmpty) {
-      if (_answer.text.trim().isEmpty) _message('Escribe una respuesta.');
-      return;
-    }
-    setState(() => _submitting = true);
-    try {
-      await repository.submitTask(taskId: taskId, answer: _answer.text);
-      if (mounted) _message('Entrega registrada en Supabase.');
-    } catch (e) {
-      if (mounted) _message('No se pudo entregar la tarea: $e');
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
-  }
-
-  void _message(String text) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-
-  Future<void> _openResource() async {
-    try {
-      final uri = await LessonResourceService(
-        Supabase.instance.client,
-      ).resolve(widget.course.id, widget.lesson);
-      if (!mounted) return;
-      if (uri == null) {
-        _message('Recurso no disponible.');
-        return;
-      }
-      if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
-          mounted) {
-        _message('No se pudo abrir el recurso.');
-      }
-    } catch (_) {
-      if (mounted) _message('No se pudo abrir el recurso con tu autorización.');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final lesson = widget.lesson;
-    final demo = widget.course.isDemo;
-    return Scaffold(
-      backgroundColor: AcademixColors.background,
-      appBar: AppBar(
-        backgroundColor: AcademixColors.card,
-        foregroundColor: Colors.white,
-        title: Text(demo ? 'Aula de demostración' : 'Aula Academix'),
-      ),
-      body: FutureBuilder<bool>(
-        future: _access,
-        builder: (context, access) {
-          if (access.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (access.hasError ||
-              access.data != true ||
-              Supabase.instance.client.auth.currentUser == null) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'No tienes una inscripción activa para abrir esta lección.',
-                  style: TextStyle(color: Colors.white70),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              if (demo)
-                const Text(
-                  'MODO DEMO · No se guarda en Supabase',
-                  style: TextStyle(
-                    color: AcademixColors.lavender,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              const SizedBox(height: 12),
-              Text(
-                lesson.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 25,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (lesson.durationMinutes > 0)
-                Text(
-                  '${lesson.durationMinutes} minutos',
-                  style: const TextStyle(color: AcademixColors.muted),
-                ),
-              const SizedBox(height: 20),
-              if (!demo &&
-                  (lesson.videoUrl.isNotEmpty || lesson.videoPath.isNotEmpty))
-                FutureBuilder<Uri?>(
-                  future: _video,
-                  builder: (context, video) {
-                    if (video.connectionState != ConnectionState.done) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (video.hasError || video.data == null) {
-                      return const Text(
-                        'El video no está disponible para esta sesión.',
-                        style: TextStyle(color: Colors.white70),
-                      );
-                    }
-                    return LessonVideoPlayer(uri: video.data!);
-                  },
-                )
-              else
-                Text(
-                  demo
-                      ? 'Esta lección de demostración no tiene video real.'
-                      : 'Esta lección no tiene un video asociado en la base de datos.',
-                  style: const TextStyle(color: AcademixColors.muted),
-                ),
-              if (lesson.description.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(
-                  lesson.description,
-                  style: const TextStyle(color: Colors.white70, height: 1.5),
-                ),
-              ],
-              if (!demo &&
-                  (lesson.resourceUrl.isNotEmpty ||
-                      lesson.resourcePath.isNotEmpty)) ...[
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _openResource,
-                  icon: const Icon(Icons.attach_file),
-                  label: const Text('Abrir recurso'),
-                ),
-              ],
-              const SizedBox(height: 25),
-              if (!demo) ...[
-                if (_progressError != null) Text(_progressError!),
-                FilledButton.tonalIcon(
-                  onPressed:
-                      !StudentSchema.enabled || _savingProgress || _completed
-                          ? null
-                          : _completeReal,
-                  icon: Icon(
-                    _completed
-                        ? Icons.check_circle
-                        : Icons.check_circle_outline,
-                  ),
-                  label: Text(
-                    _completed
-                        ? 'Lección completada'
-                        : _savingProgress
-                        ? 'Guardando…'
-                        : 'Marcar lección completada',
-                  ),
-                ),
-                if (!StudentSchema.enabled)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 10),
-                    child: Text(
-                      'El guardado de progreso aún no está conectado al servidor.',
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Aula virtual')),
+    body: FutureBuilder<LearningCourse>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    studentError(
+                      snapshot.error,
+                      'No pudimos abrir este curso.',
                     ),
                   ),
-              ],
-              if (demo && lesson.task.isNotEmpty) ...[
-                const Text(
-                  'Actividad de práctica (demo)',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                  TextButton(
+                    onPressed: () => setState(_reload),
+                    child: const Text('Reintentar'),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  lesson.task,
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                const SizedBox(height: 12),
-                _answerField(),
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: () {
-                    if (_answer.text.trim().isEmpty) {
-                      _message('Escribe una respuesta antes de guardarla.');
-                      return;
-                    }
-                    store.submitDemoTask(
-                      widget.course.id,
-                      lesson.id,
-                      _answer.text,
-                    );
-                    _message('Respuesta guardada temporalmente (demo).');
-                  },
-                  icon: const Icon(Icons.send_outlined),
-                  label: const Text('Guardar respuesta demo'),
-                ),
-              ],
-              if (!demo)
-                FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _tasks,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState != ConnectionState.done) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return const Text(
-                        'No se pudieron consultar las actividades.',
-                        style: TextStyle(color: Colors.white70),
-                      );
-                    }
-                    final tasks = snapshot.data ?? [];
-                    if (tasks.isEmpty) {
-                      return const Text(
-                        'Sin actividades configuradas para esta lección.',
-                        style: TextStyle(color: AcademixColors.muted),
-                      );
-                    }
-                    // La escritura solo se permite si el esquema de entregas fue validado.
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Tareas',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        ...tasks.map(
-                          (task) => Card(
-                            color: AcademixColors.card,
-                            child: Padding(
-                              padding: const EdgeInsets.all(14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    (task['title'] ??
-                                            task['titulo'] ??
-                                            'Actividad')
-                                        .toString(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    (task['description'] ??
-                                            task['descripcion'] ??
-                                            '')
-                                        .toString(),
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _answerField(),
-                                  const SizedBox(height: 12),
-                                  FilledButton.icon(
-                                    onPressed:
-                                        _submitting ||
-                                                !LearningSchema
-                                                    .submissionsEnabled
-                                            ? null
-                                            : () => _submitReal(
-                                              (task['id'] ?? task['id_tarea'])
-                                                  .toString(),
-                                            ),
-                                    icon: const Icon(Icons.send),
-                                    label: const Text('Entregar tarea'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              if (demo) ...[
-                const SizedBox(height: 16),
-                FilledButton.tonalIcon(
-                  onPressed: () {
-                    store.complete(widget.course.id, lesson.id);
-                    _message('Lección completada (solo demo).');
-                    setState(() {});
-                  },
-                  icon: Icon(
-                    store.isCompleted('${widget.course.id}/${lesson.id}')
-                        ? Icons.check_circle
-                        : Icons.check_circle_outline,
-                  ),
-                  label: const Text('Marcar lección completada'),
-                ),
-              ],
-            ],
+                ],
+              ),
+            ),
           );
-        },
-      ),
-    );
-  }
-
-  Widget _answerField() => TextField(
-    controller: _answer,
-    minLines: 3,
-    maxLines: 5,
-    style: const TextStyle(color: Colors.white),
-    decoration: const InputDecoration(
-      labelText: 'Tu respuesta',
-      border: OutlineInputBorder(),
+        }
+        final course = snapshot.data!;
+        final lessons = course.lessons;
+        if (lessons.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text('Este curso todavía no tiene lecciones publicadas.'),
+            ),
+          );
+        }
+        final active =
+            lessons.where((l) => l.id == _activeId).firstOrNull ??
+            lessons.where((l) => !l.isCompleted).firstOrNull ??
+            lessons.first;
+        _activeId = active.id;
+        final index = lessons.indexOf(active);
+        return ListView(
+          padding: const EdgeInsets.all(18),
+          children: [
+            Text(course.title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: (course.percentage / 100).clamp(0, 1).toDouble(),
+            ),
+            const SizedBox(height: 8),
+            Text('Progreso total: ${course.percentage}%'),
+            const SizedBox(height: 18),
+            Card(
+              child: ExpansionTile(
+                title: const Text('Contenido del curso'),
+                subtitle: Text('${lessons.length} lecciones'),
+                children: [
+                  for (final module in course.modules)
+                    ExpansionTile(
+                      title: Text(module.title),
+                      children: [
+                        for (final lesson in module.lessons)
+                          ListTile(
+                            selected: lesson.id == active.id,
+                            leading: Icon(
+                              lesson.isCompleted
+                                  ? Icons.check_circle
+                                  : Icons.play_circle_outline,
+                            ),
+                            title: Text(lesson.title),
+                            subtitle: Text('${lesson.durationMinutes} min'),
+                            onTap:
+                                () => setState(() {
+                                  _activeId = lesson.id;
+                                  _error = null;
+                                }),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        Chip(label: Text('${active.durationMinutes} minutos')),
+                        if (active.isCompleted)
+                          const Chip(label: Text('Completada')),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      active.title,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 16),
+                    if (active.description.isNotEmpty)
+                      Text(
+                        active.description,
+                        style: const TextStyle(height: 1.6),
+                      ),
+                    if (active.content.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 18),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: SelectableText(
+                          active.content,
+                          style: const TextStyle(height: 1.7),
+                        ),
+                      ),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Text(_error!),
+                      ),
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: _saving ? null : () => _progress(active),
+                      icon: Icon(
+                        active.isCompleted
+                            ? Icons.undo
+                            : Icons.check_circle_outline,
+                      ),
+                      label: Text(
+                        _saving
+                            ? 'Guardando…'
+                            : active.isCompleted
+                            ? 'Marcar como pendiente'
+                            : 'Marcar como completada',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (index > 0)
+                          OutlinedButton(
+                            onPressed:
+                                () => setState(
+                                  () => _activeId = lessons[index - 1].id,
+                                ),
+                            child: const Text('← Anterior'),
+                          ),
+                        if (index < lessons.length - 1)
+                          OutlinedButton(
+                            onPressed:
+                                () => setState(
+                                  () => _activeId = lessons[index + 1].id,
+                                ),
+                            child: const Text('Siguiente →'),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (active.resources.isNotEmpty) ...[
+              const SizedBox(height: 22),
+              Text(
+                'Recursos de la lección',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 10),
+              for (final resource in active.resources)
+                LessonResource(
+                  key: ValueKey('${active.id}/${resource.id}'),
+                  resource: resource,
+                  api: _repository.api,
+                ),
+            ],
+            const SizedBox(height: 20),
+            Text('Instructor: ${course.instructor}'),
+            if (course.percentage >= 100 && widget.course.certificateEnabled)
+              Padding(
+                padding: const EdgeInsets.only(top: 20),
+                child: FilledButton.icon(
+                  onPressed:
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => StudentGuard(
+                                builder: (_) => const CertificatesScreen(),
+                              ),
+                        ),
+                      ),
+                  icon: const Icon(Icons.workspace_premium_outlined),
+                  label: const Text('Ver mis certificados'),
+                ),
+              ),
+            const SizedBox(height: 24),
+          ],
+        );
+      },
     ),
   );
 }

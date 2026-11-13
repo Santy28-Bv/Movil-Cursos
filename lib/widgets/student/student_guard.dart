@@ -24,7 +24,7 @@ class _StudentGuardState extends State<StudentGuard> {
       if (mounted && state.session?.user.id != _owner) {
         setState(() => _valid = false);
       }
-    });
+    }, onError: (Object error, StackTrace stack) {});
   }
 
   @override

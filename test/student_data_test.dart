@@ -17,7 +17,7 @@ void main() {
     expect(() => CourseReview.validate(0, 'Bien'), throwsArgumentError);
     expect(() => CourseReview.validate(6, 'Bien'), throwsArgumentError);
     expect(() => CourseReview.validate(5, '  '), throwsArgumentError);
-    expect(() => CourseReview.validate(5, 'x' * 1001), throwsArgumentError);
-    expect(() => CourseReview.validate(5, 'x' * 1000), returnsNormally);
+    expect(() => CourseReview.validate(5, 'x' * 2001), throwsArgumentError);
+    expect(() => CourseReview.validate(5, 'x' * 2000), returnsNormally);
   });
 }

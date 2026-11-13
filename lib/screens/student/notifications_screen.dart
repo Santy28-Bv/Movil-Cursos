@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../config/student_schema.dart';
 import '../../repositories/student_repository.dart';
 import '../../services/student_session.dart';
 import '../../widgets/student/student_banner.dart';
@@ -21,7 +20,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void initState() {
     super.initState();
     _repository = StudentRepository(Supabase.instance.client);
-    if (StudentSchema.enabled) _refresh();
+    _refresh();
   }
 
   Future<void> _refresh() async {
@@ -65,19 +64,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     appBar: AppBar(
       title: const Text('Notificaciones'),
       actions: [
-        if (StudentSchema.enabled)
-          IconButton(
-            tooltip: 'Actualizar',
-            onPressed: _loading || _saving ? null : _refresh,
-            icon: const Icon(Icons.refresh),
-          ),
+        IconButton(
+          tooltip: 'Actualizar',
+          onPressed: _loading || _saving ? null : _refresh,
+          icon: const Icon(Icons.refresh),
+        ),
       ],
     ),
     body: AnimatedBuilder(
       animation: _session,
       builder:
           (context, _) => RefreshIndicator(
-            onRefresh: StudentSchema.enabled ? _refresh : () async {},
+            onRefresh: _refresh,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(18),
@@ -86,10 +84,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   title: 'Al día contigo',
                   message: '${_session.unreadCount} notificaciones sin leer',
                 ),
-                if (!StudentSchema.enabled)
-                  const Text(
-                    'El centro de avisos estará disponible cuando se conecte al servidor.',
-                  ),
                 if (_loading) const LinearProgressIndicator(),
                 if (_error != null) ...[
                   Text(_error!),
@@ -98,10 +92,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     child: const Text('Reintentar'),
                   ),
                 ],
-                if (StudentSchema.enabled &&
-                    !_loading &&
-                    _error == null &&
-                    _session.notices.isEmpty)
+                if (!_loading && _error == null && _session.notices.isEmpty)
                   const Text('No tienes notificaciones.'),
                 if (_session.unreadCount > 0)
                   OutlinedButton.icon(

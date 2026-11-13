@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../config/student_schema.dart';
 import '../../models/student_data.dart';
 import '../../repositories/student_repository.dart';
+import '../../services/academix_api.dart';
 
 class CourseReviews extends StatefulWidget {
   const CourseReviews({
     super.key,
     required this.courseId,
     required this.hasAccess,
-    this.isDemo = false,
+    this.isCompleted = false,
+    this.repository,
   });
   final String courseId;
   final bool hasAccess;
-  final bool isDemo;
+  final bool isCompleted;
+  final StudentRepository? repository;
   @override
   State<CourseReviews> createState() => _CourseReviewsState();
 }
@@ -21,20 +23,20 @@ class CourseReviews extends StatefulWidget {
 class _CourseReviewsState extends State<CourseReviews> {
   final _comment = TextEditingController();
   late final StudentRepository _repository;
-  late Future<List<CourseReview>> _future;
+  final List<CourseReview> _reviews = [];
   int _rating = 5;
+  int _page = 0;
+  bool _hasMore = true;
+  bool _loading = false;
   bool _saving = false;
-  bool get _enabled => StudentSchema.enabled && !widget.isDemo;
+  bool _published = false;
+  String? _error;
   @override
   void initState() {
     super.initState();
-    _repository = StudentRepository(Supabase.instance.client);
+    _repository =
+        widget.repository ?? StudentRepository(Supabase.instance.client);
     _load();
-  }
-
-  void _load() {
-    _future =
-        _enabled ? _repository.reviews(widget.courseId) : Future.value([]);
   }
 
   @override
@@ -43,12 +45,45 @@ class _CourseReviewsState extends State<CourseReviews> {
     super.dispose();
   }
 
+  Future<void> _load({bool reset = false}) async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+      if (reset) {
+        _page = 0;
+        _reviews.clear();
+      }
+    });
+    try {
+      final page = await _repository.reviewsPage(
+        widget.courseId,
+        page: _page + 1,
+      );
+      if (mounted) {
+        setState(() {
+          _reviews.addAll(page.items.map(CourseReview.fromJson));
+          _page = page.page;
+          _hasMore = page.hasMore;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = studentError(error, 'No pudimos cargar las reseñas.'),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   Future<void> _publish() async {
     if (_saving) return;
     try {
       CourseReview.validate(_rating, _comment.text);
-    } on ArgumentError catch (e) {
-      _message('${e.message}');
+    } on ArgumentError catch (error) {
+      _message('${error.message}');
       return;
     }
     setState(() => _saving = true);
@@ -56,93 +91,79 @@ class _CourseReviewsState extends State<CourseReviews> {
       await _repository.publishReview(widget.courseId, _rating, _comment.text);
       if (!mounted) return;
       _comment.clear();
-      setState(_load);
-      _message(
-        'Reseña enviada. Su visibilidad depende de la moderación del curso.',
-      );
-    } catch (_) {
-      if (mounted) {
-        _message(
-          'No se pudo publicar. Comprueba tu acceso o si ya tienes una reseña.',
-        );
+      setState(() => _published = true);
+      _message('Tu reseña se publicó correctamente.');
+      await _load(reset: true);
+    } catch (error) {
+      if (error is ApiException &&
+          error.code == 'REVIEW_ALREADY_EXISTS' &&
+          mounted) {
+        setState(() => _published = true);
       }
+      _message(studentError(error, 'No pudimos publicar tu reseña.'));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
-  void _message(String message) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text(message)));
+  void _message(String value) {
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(value)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Text(
         'Opiniones de estudiantes',
         style: Theme.of(context).textTheme.titleLarge,
       ),
-      const SizedBox(height: 12),
-      if (!_enabled)
-        Text(
-          widget.isDemo
-              ? 'Las prácticas demo no publican reseñas reales.'
-              : 'Las reseñas estarán disponibles cuando se conecten al servidor.',
-        ),
-      if (_enabled)
-        FutureBuilder<List<CourseReview>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const LinearProgressIndicator();
-            }
-            if (snapshot.hasError) {
-              return TextButton(
-                onPressed: () => setState(_load),
-                child: const Text(
-                  'No se pudieron cargar las reseñas. Reintentar',
+      const SizedBox(height: 14),
+      for (final review in _reviews)
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  review.author,
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-              );
-            }
-            final reviews = snapshot.data ?? [];
-            if (reviews.isEmpty) {
-              return const Text(
-                'Este curso todavía no tiene reseñas publicadas.',
-              );
-            }
-            return Column(
-              children:
-                  reviews
-                      .map(
-                        (review) => Card(
-                          child: ListTile(
-                            title: Text(review.author),
-                            subtitle: Text(review.comment),
-                            trailing: Text('★ ${review.rating}/5'),
-                          ),
-                        ),
-                      )
-                      .toList(),
-            );
-          },
+                const SizedBox(height: 6),
+                Text('★ ${review.rating}/5'),
+                const SizedBox(height: 10),
+                Text(review.comment),
+              ],
+            ),
+          ),
         ),
-      if (_enabled && widget.hasAccess) ...[
+      if (_error != null) ...[
+        Text(_error!),
+        TextButton(onPressed: _load, child: const Text('Reintentar')),
+      ],
+      if (_loading)
+        const LinearProgressIndicator()
+      else if (_reviews.isEmpty && _error == null)
+        const Text('Este curso todavía no tiene reseñas publicadas.')
+      else if (_hasMore && _error == null)
+        TextButton(onPressed: _load, child: const Text('Ver más reseñas')),
+      if (widget.hasAccess && widget.isCompleted && !_published) ...[
         const SizedBox(height: 20),
         const Text('Tu calificación'),
         DropdownButton<int>(
           value: _rating,
           isExpanded: true,
-          items: List.generate(
-            5,
-            (i) => DropdownMenuItem(
-              value: i + 1,
-              child: Text('${i + 1} estrellas'),
-            ),
-          ),
-          onChanged:
-              _saving ? null : (value) => setState(() => _rating = value ?? 5),
+          items: [
+            for (var i = 1; i <= 5; i++)
+              DropdownMenuItem(value: i, child: Text('$i estrellas')),
+          ],
+          onChanged: _saving ? null : (v) => setState(() => _rating = v ?? 5),
         ),
-        const SizedBox(height: 12),
         TextField(
           controller: _comment,
           enabled: !_saving,
@@ -158,11 +179,16 @@ class _CourseReviewsState extends State<CourseReviews> {
           icon: const Icon(Icons.rate_review_outlined),
           label: Text(_saving ? 'Enviando…' : 'Publicar reseña'),
         ),
-      ] else if (_enabled)
+      ] else if (widget.hasAccess && !widget.isCompleted)
+        const Padding(
+          padding: EdgeInsets.only(top: 14),
+          child: Text('Completa el curso para publicar tu reseña.'),
+        )
+      else if (!widget.hasAccess)
         const Padding(
           padding: EdgeInsets.only(top: 14),
           child: Text(
-            'Inicia sesión y accede al curso para publicar tu reseña.',
+            'Inicia sesión y accede al curso para compartir tu experiencia.',
           ),
         ),
     ],

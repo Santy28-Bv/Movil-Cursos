@@ -159,7 +159,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
             AuthInput(
               label: 'Contraseña',
-              hint: 'Mínimo 6 caracteres',
+              hint: 'De 8 a 72 caracteres',
               controller: _password,
               obscureText: !_showPassword,
               suffixIcon: IconButton(
@@ -176,8 +176,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 },
               ),
               validator: (value) {
-                if (value == null || value.length < 6) {
-                  return 'Mínimo 6 caracteres';
+                if (value == null || value.length < 8 || value.length > 72) {
+                  return 'Usa de 8 a 72 caracteres';
                 }
                 return null;
               },
@@ -190,6 +190,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
               hint: 'Repite tu contraseña',
               controller: _confirmPassword,
               obscureText: !_showPassword,
+              suffixIcon: IconButton(
+                tooltip:
+                    _showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña',
+                icon: Icon(
+                  _showPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+                onPressed: () => setState(() => _showPassword = !_showPassword),
+              ),
               validator: (value) {
                 if (value != _password.text) {
                   return 'Las contraseñas no coinciden';

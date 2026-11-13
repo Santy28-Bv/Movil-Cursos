@@ -1,60 +1,50 @@
-import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../config/supabase_settings.dart';
+import '../services/academix_api.dart';
 
-/// La petición usa un cliente aislado: GoTrue.updateUser modifica la sesión
-/// al terminar, por lo que una respuesta tardía de A no debe modificar a B.
 class ProfileRepository {
-  ProfileRepository(this.client, {SupabaseClient Function()? createIsolated})
-    : _createIsolated =
-          createIsolated ??
-          (() => SupabaseClient(
-            SupabaseSettings.url,
-            SupabaseSettings.publishableKey,
-            authOptions: const AuthClientOptions(autoRefreshToken: false),
-          ));
+  ProfileRepository(this.client, {AcademixApi? api})
+    : api = api ?? AcademixApi(client);
   final SupabaseClient client;
-  final SupabaseClient Function() _createIsolated;
-
-  Future<void> update(String owner, Map<String, String> fields) async {
-    final session = client.auth.currentSession;
-    if (session == null || session.user.id != owner) {
-      throw StateError('La cuenta cambió.');
+  final AcademixApi api;
+  Future<Map<String, dynamic>> get() async {
+    final owner = client.auth.currentUser?.id;
+    final profile = Map<String, dynamic>.from(
+      await api.get('/users/me') as Map,
+    );
+    if (owner == null ||
+        profile['id'] != owner ||
+        client.auth.currentUser?.id != owner) {
+      throw const ApiException(
+        'Tu sesión cambió. Vuelve al inicio.',
+        code: 'SESSION_CHANGED',
+      );
     }
-    const allowed = {
-      'nombres',
-      'apellido_paterno',
-      'apellido_materno',
-      'telefono',
-    };
-    if (fields.keys.any((key) => !allowed.contains(key))) {
+    return profile;
+  }
+
+  Future<Map<String, dynamic>> update(
+    String owner,
+    Map<String, String> fields,
+  ) async {
+    if (client.auth.currentUser?.id != owner) {
+      throw const ApiException(
+        'Tu sesión cambió. Vuelve al inicio.',
+        code: 'SESSION_CHANGED',
+      );
+    }
+    const allowed = {'fullName', 'phone', 'country', 'bio'};
+    if (fields.isEmpty || fields.keys.any((key) => !allowed.contains(key))) {
       throw ArgumentError('Campo de perfil no permitido.');
     }
-    var changed = false;
-    final subscription = client.auth.onAuthStateChange.listen((event) {
-      if (event.session?.user.id != owner) changed = true;
-    });
-    final isolated = _createIsolated();
-    try {
-      await isolated.auth.setInitialSession(jsonEncode(session.toJson()));
-      final response = await isolated.auth.updateUser(
-        UserAttributes(data: fields),
+    final profile = Map<String, dynamic>.from(
+      await api.patch('/users/me', fields) as Map,
+    );
+    if (profile['id'] != owner || client.auth.currentUser?.id != owner) {
+      throw const ApiException(
+        'Tu sesión cambió. Vuelve al inicio.',
+        code: 'SESSION_CHANGED',
       );
-      final live = client.auth.currentSession;
-      if (changed || live == null || live.user.id != owner) {
-        throw StateError('La cuenta cambió.');
-      }
-      if (response.user?.id != owner) {
-        throw StateError('No se confirmó el cambio.');
-      }
-      // Inicialización en memoria síncrona: sin petición de red entre la
-      // comprobación de identidad y la reconciliación de los datos del perfil.
-      await client.auth.setInitialSession(
-        jsonEncode(live.copyWith(user: response.user).toJson()),
-      );
-    } finally {
-      await subscription.cancel();
-      await isolated.dispose();
     }
+    return profile;
   }
 }

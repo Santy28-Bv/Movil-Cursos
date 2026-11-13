@@ -16,8 +16,14 @@ class StudentNotice {
     title:
         (row['title'] ?? row['asunto'] ?? row['tituloAviso'] ?? 'Aviso')
             .toString(),
-    message: (row['body'] ?? row['contenido'] ?? '').toString(),
-    isRead: row['read_at'] != null || row['is_read'] == true,
+    message:
+        (row['message'] ?? row['body'] ?? row['contenido'] ?? '').toString(),
+    isRead:
+        row['read'] == true ||
+        row['readAt'] != null ||
+        row['isRead'] == true ||
+        row['read_at'] != null ||
+        row['is_read'] == true,
   );
   StudentNotice read() =>
       StudentNotice(id: id, title: title, message: message, isRead: true);
@@ -29,13 +35,14 @@ class CourseReview {
     required this.rating,
     required this.comment,
   });
-  static const maxCommentLength = 1000;
+  static const maxCommentLength = 2000;
   final String author;
   final int rating;
   final String comment;
 
   factory CourseReview.fromJson(Map<String, dynamic> row) => CourseReview(
-    author: (row['author_name'] ?? 'Estudiante').toString(),
+    author:
+        (row['authorName'] ?? row['author_name'] ?? 'Estudiante').toString(),
     rating: int.tryParse('${row['rating']}') ?? 0,
     comment: (row['comment'] ?? '').toString(),
   );
@@ -44,9 +51,10 @@ class CourseReview {
     if (rating < 1 || rating > 5) {
       throw ArgumentError('Selecciona una calificación de 1 a 5.');
     }
-    if (comment.trim().isEmpty || comment.runes.length > maxCommentLength) {
+    if (comment.trim().length < 10 ||
+        comment.trim().length > maxCommentLength) {
       throw ArgumentError(
-        'Escribe un comentario de 1 a $maxCommentLength caracteres.',
+        'Escribe un comentario de 10 a $maxCommentLength caracteres.',
       );
     }
   }
@@ -58,16 +66,32 @@ class StudentCertificate {
     required this.recipient,
     required this.issuer,
     required this.code,
+    this.id = '',
+    this.issuedAt = '',
+    this.durationHours = 0,
+    this.signature = '',
+    this.verificationPath = '',
   });
   final String course;
   final String recipient;
   final String issuer;
   final String code;
-  factory StudentCertificate.fromJson(Map<String, dynamic> row) =>
-      StudentCertificate(
-        course: (row['course_title'] ?? '').toString(),
-        recipient: (row['recipient_name'] ?? '').toString(),
-        issuer: (row['issuer_name'] ?? '').toString(),
-        code: (row['credential_code'] ?? '').toString(),
-      );
+  final String id;
+  final String issuedAt;
+  final num durationHours;
+  final String signature;
+  final String verificationPath;
+  factory StudentCertificate.fromJson(
+    Map<String, dynamic> row,
+  ) => StudentCertificate(
+    course: (row['courseTitle'] ?? row['course_title'] ?? '').toString(),
+    recipient: (row['recipientName'] ?? row['recipient_name'] ?? '').toString(),
+    issuer: (row['issuerName'] ?? row['issuer_name'] ?? 'Academix').toString(),
+    code: (row['credentialCode'] ?? row['credential_code'] ?? '').toString(),
+    id: '${row['id'] ?? ''}',
+    issuedAt: '${row['issuedAt'] ?? ''}',
+    durationHours: row['durationHours'] as num? ?? 0,
+    signature: '${row['systemSignature'] ?? ''}',
+    verificationPath: '${row['verificationPath'] ?? ''}',
+  );
 }

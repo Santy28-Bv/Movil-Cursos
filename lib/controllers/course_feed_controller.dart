@@ -5,7 +5,7 @@ import '../repositories/course_repository.dart';
 
 /// Maneja búsqueda, paginación, recarga y errores sin mezclar UI y SQL.
 class CourseFeedController extends ChangeNotifier {
-  CourseFeedController({required this.repository, this.pageSize = 6});
+  CourseFeedController({required this.repository, this.pageSize = 10});
 
   final CourseRepository repository;
   final int pageSize;
@@ -19,8 +19,6 @@ class CourseFeedController extends ChangeNotifier {
   bool _loading = false;
   bool _hasMore = true;
   String? _error;
-  bool _isDemo = false;
-  String? _notice;
   String _search = '';
 
   List<Course> get courses => _readonlyCourses;
@@ -28,8 +26,6 @@ class CourseFeedController extends ChangeNotifier {
   bool get hasMore => _hasMore;
   String? get error => _error;
   String get search => _search;
-  bool get isDemo => _isDemo;
-  String? get notice => _notice;
 
   Future<void> loadMore() async {
     if (_disposed || _loading || !_hasMore || _error != null) return;
@@ -46,9 +42,7 @@ class CourseFeedController extends ChangeNotifier {
       if (_disposed || version != _requestVersion) return;
 
       _courses.addAll(page.items);
-      _isDemo = page.isDemo;
-      _notice = page.notice;
-      _offset += page.items.length;
+      _offset += pageSize;
       _hasMore = page.hasMore;
     } catch (e) {
       if (_disposed || version != _requestVersion) return;
@@ -69,8 +63,6 @@ class CourseFeedController extends ChangeNotifier {
     _hasMore = true;
     _loading = false;
     _error = null;
-    _isDemo = false;
-    _notice = null;
     notifyListeners();
     return loadMore();
   }

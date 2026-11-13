@@ -43,9 +43,7 @@ class CartScreen extends StatelessWidget {
                   (course) => Card(
                     child: ListTile(
                       title: Text(course.title),
-                      subtitle: Text(
-                        '${course.priceLabel}${course.isDemo ? ' · Demo' : ''}',
-                      ),
+                      subtitle: Text(course.priceLabel),
                       trailing: IconButton(
                         tooltip: 'Quitar ${course.title}',
                         onPressed: () => state.removeFromCart(course.id),

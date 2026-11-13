@@ -8,10 +8,18 @@ class FakeCourses implements CourseRepository {
   final List<Course> items;
 
   @override
-  Future<CoursePage> fetchPublished({required int offset,
-      required int limit, String search = ''}) async {
-    final filtered = items.where((course) =>
-        course.title.toLowerCase().contains(search.toLowerCase())).toList();
+  Future<CoursePage> fetchPublished({
+    required int offset,
+    required int limit,
+    String search = '',
+  }) async {
+    final filtered =
+        items
+            .where(
+              (course) =>
+                  course.title.toLowerCase().contains(search.toLowerCase()),
+            )
+            .toList();
     final window = filtered.skip(offset).take(limit + 1).toList();
     return CoursePage(
       items: window.take(limit).toList(),
@@ -21,17 +29,22 @@ class FakeCourses implements CourseRepository {
 }
 
 void main() {
-  final courses = List.generate(13, (index) => Course(
-      id: '$index', title: 'Curso $index', description: '',
-      category: '', imageUrl: '', price: 10));
+  final courses = List.generate(
+    13,
+    (index) => Course(
+      id: '$index',
+      title: 'Curso $index',
+      description: '',
+      category: '',
+      imageUrl: '',
+      price: 10,
+    ),
+  );
 
   test('pagina en bloques y se detiene al terminar', () async {
     final feed = CourseFeedController(repository: FakeCourses(courses));
     await feed.loadMore();
-    expect(feed.courses.length, 6);
-    expect(feed.hasMore, isTrue);
-    await feed.loadMore();
-    expect(feed.courses.length, 12);
+    expect(feed.courses.length, 10);
     expect(feed.hasMore, isTrue);
     await feed.loadMore();
     expect(feed.courses.length, 13);

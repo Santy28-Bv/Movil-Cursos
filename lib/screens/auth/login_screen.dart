@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'register_screen.dart';
+import '../../services/academix_api.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -59,8 +60,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No fue posible iniciar sesión.'),
+        SnackBar(
+          content: Text(studentError(e, 'No fue posible iniciar sesión.')),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -80,6 +81,38 @@ class _LoginScreenState extends State<LoginScreen> {
     // Si se requiere confirmar el correo, permanecemos en Login.
     if (loggedIn == true && mounted && Navigator.of(context).canPop()) {
       Navigator.of(context).pop(true);
+    }
+  }
+
+  Future<void> _recover() async {
+    if (!_email.text.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Escribe tu correo para solicitar la recuperación.'),
+        ),
+      );
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      await _auth.requestPasswordReset(_email.text);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Si hay una cuenta asociada, recibirás un correo con los pasos para recuperar el acceso.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(studentError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -133,6 +166,10 @@ class _LoginScreenState extends State<LoginScreen> {
               },
             ),
 
+            TextButton(
+              onPressed: _loading ? null : _recover,
+              child: const Text('Olvidé mi contraseña'),
+            ),
             const SizedBox(height: 25),
 
             SizedBox(

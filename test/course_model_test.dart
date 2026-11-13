@@ -2,12 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:academix/models/course.dart';
 
 void main() {
-  test('cursos del sitio web conservan títulos y carácter demostrativo', () {
-    // El contenido real de CursosWeb se verifica por separado en data/cursos_web_demo.dart.
-    final course = Course(id: 'course-web-full-stack', title: 'Prueba',
-        description: '', category: '', imageUrl: '', price: 10, isDemo: true);
-    expect(course.isDemo, true);
-  });
   test('convierte un curso de Supabase en un modelo', () {
     final course = Course.fromJson({
       'id': 4,

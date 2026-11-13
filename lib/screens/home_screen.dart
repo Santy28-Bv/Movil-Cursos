@@ -6,10 +6,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../controllers/course_feed_controller.dart';
 import '../screens/courses/course_detail_screen.dart';
 import '../screens/courses/my_courses_screen.dart';
-import '../services/demo_learning_store.dart';
 import '../services/student_session.dart';
-import '../config/student_schema.dart';
 import '../repositories/student_repository.dart';
+import '../repositories/profile_repository.dart';
+import 'student/organizations_screen.dart';
+import 'student/help_screen.dart';
+import 'student/prices_screen.dart';
+import 'student/verify_certificate_screen.dart';
 import '../widgets/student/student_guard.dart';
 import 'student/cart_screen.dart';
 import 'student/profile_screen.dart';
@@ -28,6 +31,8 @@ import '../widgets/home/auth/guest_account_sheet.dart';
 
 // Widgets del Home
 import '../widgets/home/course_card.dart';
+import '../widgets/home/featured_courses.dart';
+import '../widgets/home/catalog_filters.dart';
 import '../widgets/home/course_catalog_header.dart';
 import '../widgets/home/course_feed_state.dart';
 import '../widgets/home/home_cta.dart';
@@ -59,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final StreamSubscription<AuthState> _authSubscription;
   bool _isAuthenticated = false;
   String? _activeUserId;
-  late final SupabaseCourseRepository _courseRepository;
+  late final ApiCourseRepository _courseRepository;
 
   late final CourseFeedController _feed;
 
@@ -67,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
 
-    _courseRepository = SupabaseCourseRepository(Supabase.instance.client);
+    _courseRepository = ApiCourseRepository(Supabase.instance.client);
     _feed = CourseFeedController(repository: _courseRepository);
 
     _scrollController.addListener(_checkCatalogEnd);
@@ -81,6 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
     StudentSession.instance.bindUser(_activeUserId);
     StudentSession.instance.addListener(_studentChanged);
     _refreshNotices();
+    _refreshProfile();
     _authSubscription = auth.onAuthStateChange.listen((state) {
       if (!mounted) return;
       final signedIn = state.session?.user != null;
@@ -88,14 +94,13 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_activeUserId != nextUserId) {
         _activeUserId = nextUserId;
         // No mezclar matrícula o tareas de una cuenta con otra.
-        DemoLearningStore.instance.clear();
         StudentSession.instance.bindUser(nextUserId);
         _refreshNotices();
-        _courseRepository.resetSource();
+        _refreshProfile();
         setState(() => _isAuthenticated = signedIn);
         _feed.refresh();
       }
-    });
+    }, onError: (Object error, StackTrace stack) {});
 
     _feed.loadMore();
   }
@@ -105,7 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refreshNotices() async {
-    if (!StudentSchema.enabled || _activeUserId == null) return;
+    if (_activeUserId == null) return;
     try {
       await StudentSession.instance.refreshNotices(
         StudentRepository(Supabase.instance.client).notifications,
@@ -113,6 +118,23 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {
       // La pantalla de avisos permite reintentar y muestra el error de consulta.
     }
+  }
+
+  Future<void> _refreshProfile() async {
+    if (_activeUserId == null) return;
+    try {
+      final profile = await ProfileRepository(Supabase.instance.client).get();
+      StudentSession.instance.updateProfileName(
+        '${profile['id']}',
+        '${profile['fullName'] ?? ''}',
+      );
+    } catch (_) {
+      /* Mi información permite reintentar la consulta. */
+    }
+  }
+
+  void _openPublic(Widget screen) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
   }
 
   void _openStudent(WidgetBuilder builder) {
@@ -237,6 +259,18 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         builder:
             (sheetContext) => GuestAccountSheet(
+              onHelp: (i) {
+                Navigator.pop(sheetContext);
+                _openPublic(HelpScreen(initialIndex: i));
+              },
+              onPrices: () {
+                Navigator.pop(sheetContext);
+                _openPublic(const PricesScreen());
+              },
+              onVerify: () {
+                Navigator.pop(sheetContext);
+                _openPublic(const VerifyCertificateScreen());
+              },
               onLogin: () {
                 Navigator.of(sheetContext).pop();
                 _openLogin();
@@ -250,9 +284,8 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    final firstName = (user.userMetadata?['nombres'] ?? '').toString();
-    final lastName = (user.userMetadata?['apellido_paterno'] ?? '').toString();
-    final fullName = '$firstName $lastName'.trim();
+    _refreshProfile();
+    final fullName = StudentSession.instance.profileName;
 
     showModalBottomSheet<void>(
       context: context,
@@ -265,10 +298,15 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       builder:
           (_) => AccountMenuSheet(
-            name: fullName.isEmpty ? 'Usuario Academix' : fullName,
+            name: fullName.isEmpty ? 'Mi cuenta' : fullName,
             email: user.email ?? '',
             onMyCourses: _openMyCourses,
+            onHelp: (i) => _openPublic(HelpScreen(initialIndex: i)),
+            onPrices: () => _openPublic(const PricesScreen()),
+            onVerify: () => _openPublic(const VerifyCertificateScreen()),
             onInformation: () => _openStudent((_) => const ProfileScreen()),
+            onOrganizations:
+                () => _openStudent((_) => const OrganizationsScreen()),
             onCart: () => _openStudent((_) => const CartScreen()),
             onCertificates:
                 () => _openStudent((_) => const CertificatesScreen()),
@@ -283,7 +321,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _signOut({bool switchAccount = false}) async {
     try {
       await _authService.logout();
-      DemoLearningStore.instance.clear();
 
       // El Home público permanece como raíz después de cerrar sesión.
       if (mounted && switchAccount) _openLogin();
@@ -386,6 +423,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
                         // Estadísticas.
                         const HomeStats(),
+                        FeaturedCourses(
+                          repository: _courseRepository,
+                          onOpen: _showCourse,
+                        ),
 
                         // Encabezado y búsqueda de cursos.
                         CourseCatalogHeader(
@@ -401,27 +442,13 @@ class _HomeScreenState extends State<HomeScreen> {
                             }
                           },
                         ),
-                        if (_feed.isDemo)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF38254D),
-                                border: Border.all(
-                                  color: AcademixColors.purple,
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                _feed.notice ?? 'Catálogo de demostración',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ),
+
+                        CatalogFilters(
+                          repository: _courseRepository,
+                          onChanged: () {
+                            _feed.refresh();
+                          },
+                        ),
                       ],
                     ),
                   ),

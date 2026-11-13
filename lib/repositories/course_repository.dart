@@ -1,16 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-import '../config/supabase_settings.dart';
-import '../data/cursos_web_demo.dart';
 import '../models/course.dart';
+import '../services/academix_api.dart';
 
 class CoursePage {
-  const CoursePage({required this.items, required this.hasMore,
-    this.isDemo = false, this.notice});
+  const CoursePage({required this.items, required this.hasMore});
   final List<Course> items;
   final bool hasMore;
-  final bool isDemo;
-  final String? notice;
 }
 
 abstract class CourseRepository {
@@ -21,74 +16,65 @@ abstract class CourseRepository {
   });
 }
 
-/// Usa cursos públicos de Supabase cuando están disponibles.
-/// Si aún no existe el catálogo público en la BD, usa un catálogo de DEMO,
-/// claramente señalado en la interfaz, basado en CursosWeb.
-class SupabaseCourseRepository implements CourseRepository {
-  SupabaseCourseRepository(this.client);
-  final SupabaseClient client;
-  bool _usingDemo = false;
-  String _demoNotice = 'Catálogo de demostración: no se guarda en Supabase.';
-
-  void resetSource() => _usingDemo = false;
-
-  CoursePage _getDemo({required int offset, required int limit,
-      required String search}) {
-    final term = search.trim().toLowerCase();
-    final filtered = cursosWebDemo.where((course) =>
-        term.isEmpty ||
-        '${course.title} ${course.category} ${course.instructor}'
-            .toLowerCase().contains(term)).toList();
-    final window = filtered.skip(offset).take(limit + 1).toList();
-    return CoursePage(
-      items: window.take(limit).toList(), hasMore: window.length > limit,
-      isDemo: true, notice: _demoNotice,
-    );
-  }
-
+class ApiCourseRepository implements CourseRepository {
+  ApiCourseRepository(SupabaseClient client, {AcademixApi? api})
+    : api = api ?? AcademixApi(client);
+  final AcademixApi api;
+  String? category;
+  String? level;
   @override
   Future<CoursePage> fetchPublished({
     required int offset,
     required int limit,
     String search = '',
   }) async {
-    if (_usingDemo) {
-      return _getDemo(offset: offset, limit: limit, search: search);
-    }
-
-    try {
-      var query = client.from(SupabaseSettings.coursesTable)
-          .select()
-          .eq(SupabaseSettings.statusColumn,
-              SupabaseSettings.publishedStatus);
-
-      if (search.trim().isNotEmpty) {
-        query = query.ilike(
-            SupabaseSettings.titleColumn, '%${search.trim()}%');
-      }
-
-      final rows = await query
-          .order('id', ascending: false)
-          .range(offset, offset + limit);
-      final results = List<Map<String, dynamic>>.from(rows);
-
-      // Si no hay registros en la primera carga y el catálogo no se ha
-      // filtrado, se presenta la maqueta de CursosWeb, nunca como datos reales.
-      if (offset == 0 && search.trim().isEmpty && results.isEmpty) {
-        _usingDemo = true;
-        _demoNotice = 'Sin cursos publicados en Supabase: se muestran ejemplos de CursosWeb.';
-        return _getDemo(offset: offset, limit: limit, search: search);
-      }
-      return CoursePage(
-        items: results.take(limit).map(Course.fromJson).toList(),
-        hasMore: results.length > limit,
-      );
-    } catch (_) {
-      // La tabla y sus columnas siguen pendientes de confirmar. No crear ni
-      // fingir registros en Supabase; mostrar únicamente una demo identificada.
-      _usingDemo = true;
-      _demoNotice = 'Supabase no devolvió un catálogo público. Estos cursos son una demostración de CursosWeb.';
-      return _getDemo(offset: offset, limit: limit, search: search);
-    }
+    final page = await api.page(
+      '/courses',
+      authenticated: false,
+      query: {
+        'page': '${offset ~/ limit + 1}',
+        'limit': '$limit',
+        if (search.trim().isNotEmpty) 'search': search.trim(),
+        if (category != null) 'category': category!,
+        if (level != null) 'level': level!,
+      },
+    );
+    return CoursePage(
+      items: page.items.map(Course.fromJson).toList(),
+      hasMore: page.hasMore,
+    );
   }
+
+  Future<List<Course>> featured() async =>
+      jsonRows(
+        await api.get('/courses/featured', authenticated: false),
+      ).map(Course.fromJson).toList();
+  Future<Course> detail(String id) async => Course.fromJson(
+    Map<String, dynamic>.from(
+      await api.get('/courses/${Uri.encodeComponent(id)}', authenticated: false)
+          as Map,
+    ),
+  );
+  Future<List<Map<String, dynamic>>> categories() async =>
+      jsonRows(await api.get('/categories', authenticated: false));
+  Future<List<Course>> related(String id) async =>
+      jsonRows(
+        await api.get(
+          '/courses/${Uri.encodeComponent(id)}/related',
+          authenticated: false,
+        ),
+      ).map(Course.fromJson).toList();
+  Future<Map<String, dynamic>> instructor(String id) async =>
+      Map<String, dynamic>.from(
+        await api.get(
+              '/instructors/${Uri.encodeComponent(id)}',
+              authenticated: false,
+            )
+            as Map,
+      );
+  Future<ApiPage> instructorCourses(String id, {int page = 1}) => api.page(
+    '/instructors/${Uri.encodeComponent(id)}/courses',
+    authenticated: false,
+    query: {'page': '$page', 'limit': '10'},
+  );
 }

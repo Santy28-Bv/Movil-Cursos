@@ -1,160 +1,78 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../config/student_schema.dart';
-import '../config/learning_schema.dart';
 import '../models/student_data.dart';
-import 'learning_repository.dart';
+import '../services/academix_api.dart';
 
 class StudentRepository {
-  const StudentRepository(
-    this.client, {
-    this.enabled = StudentSchema.enabled,
-    this.learningEnabled = LearningSchema.enabled,
-  });
-  final SupabaseClient client;
-  final bool enabled;
-  final bool learningEnabled;
-
-  String get _userId {
-    final id = client.auth.currentUser?.id;
-    if (id == null) throw StateError('Inicia sesión para continuar.');
-    return id;
-  }
-
-  void _requireConfigured() {
-    if (!enabled) {
-      throw StateError('Esta función aún no está conectada al servidor.');
-    }
-  }
-
-  Future<List<StudentNotice>> notifications() async {
-    _requireConfigured();
-    final owner = _userId;
-    final rows = await client
-        .from(StudentSchema.notifications)
-        .select()
-        .eq('user_id', owner)
-        .order('created_at', ascending: false);
-    return rows
-        .where((r) => r['user_id'] == owner)
-        .map(StudentNotice.fromJson)
-        .toList();
-  }
-
+  StudentRepository(SupabaseClient client, {AcademixApi? api})
+    : api = api ?? AcademixApi(client);
+  final AcademixApi api;
+  Future<List<StudentNotice>> notifications() async =>
+      jsonRows(
+        await api.get('/notifications'),
+      ).map(StudentNotice.fromJson).toList();
   Future<void> markRead([String? id]) async {
-    _requireConfigured();
-    final owner = _userId;
-    var query = client
-        .from(StudentSchema.notifications)
-        .update({'read_at': DateTime.now().toUtc().toIso8601String()})
-        .eq('user_id', owner)
-        .isFilter('read_at', null);
-    if (id != null) query = query.eq('id', id);
-    final updated = await query.select('id');
-    if (client.auth.currentUser?.id != owner) {
-      throw StateError('La cuenta cambió.');
-    }
-    if (id != null && !updated.any((r) => r['id'].toString() == id)) {
-      throw StateError('No se confirmó la lectura. Actualiza los avisos.');
-    }
-    if (id == null) {
-      final unread = await client
-          .from(StudentSchema.notifications)
-          .select('id')
-          .eq('user_id', owner)
-          .isFilter('read_at', null)
-          .limit(1);
-      if (unread.isNotEmpty) {
-        throw StateError('Algunos avisos siguen sin leer.');
-      }
-    }
+    await api.patch(
+      id == null
+          ? '/notifications/read-all'
+          : '/notifications/${Uri.encodeComponent(id)}/read',
+    );
   }
 
-  Future<List<CourseReview>> reviews(String courseId) async {
-    _requireConfigured();
-    // Proyección pública: no descarga correos ni datos privados del autor.
-    final rows = await client
-        .from(StudentSchema.reviews)
-        .select('author_name,rating,comment')
-        .eq('course_id', courseId)
-        .eq('is_visible', true)
-        .order('created_at', ascending: false);
-    return rows.map(CourseReview.fromJson).toList();
-  }
-
+  Future<ApiPage> reviewsPage(String courseId, {int page = 1}) => api.page(
+    '/courses/${Uri.encodeComponent(courseId)}/reviews',
+    authenticated: false,
+    query: {'page': '$page', 'limit': '10'},
+  );
+  Future<List<CourseReview>> reviews(String courseId) async =>
+      (await reviewsPage(courseId)).items.map(CourseReview.fromJson).toList();
   Future<void> publishReview(
     String courseId,
     int rating,
     String comment,
   ) async {
-    _requireConfigured();
     CourseReview.validate(rating, comment);
-    final owner = _userId;
-    if (!await SupabaseLearningRepository(
-      client,
-      enabled: learningEnabled,
-    ).isEnrolled(courseId)) {
-      throw StateError('Necesitas acceso al curso para publicar una reseña.');
-    }
-    if (client.auth.currentUser?.id != owner) {
-      throw StateError('La cuenta cambió.');
-    }
-    // No permite al cliente eludir moderación cambiando is_visible.
-    await client.from(StudentSchema.reviews).insert({
-      'course_id': courseId,
-      'user_id': owner,
+    await api.post('/courses/${Uri.encodeComponent(courseId)}/reviews', {
       'rating': rating,
       'comment': comment.trim(),
     });
   }
 
-  Future<List<StudentCertificate>> certificates() async {
-    _requireConfigured();
-    final owner = _userId;
-    final rows = await client
-        .from(StudentSchema.certificates)
-        .select()
-        .eq('user_id', owner)
-        .order('issued_at', ascending: false);
-    return rows
-        .where((r) => r['user_id'] == owner)
-        .map(StudentCertificate.fromJson)
-        .toList();
-  }
-
-  Future<Set<String>> completedLessons(String courseId) async {
-    _requireConfigured();
-    final rows = await client
-        .from(StudentSchema.progress)
-        .select('lesson_id')
-        .eq('user_id', _userId)
-        .eq('course_id', courseId)
-        .eq('completed', true);
-    return rows.map((r) => r['lesson_id'].toString()).toSet();
-  }
-
-  Future<void> completeLesson(String courseId, String lessonId) async {
-    _requireConfigured();
-    final owner = _userId;
-    final learning = SupabaseLearningRepository(
-      client,
-      enabled: learningEnabled,
+  Future<ApiPage> certificatesPage({int page = 1}) => api.page(
+    '/users/me/certificates',
+    query: {'page': '$page', 'limit': '10'},
+  );
+  Future<StudentCertificate> certificate(String id) async =>
+      StudentCertificate.fromJson(
+        Map<String, dynamic>.from(
+          await api.get('/users/me/certificates/${Uri.encodeComponent(id)}')
+              as Map,
+        ),
+      );
+  Future<StudentCertificate> verify(String code) async {
+    final row = Map<String, dynamic>.from(
+      await api.get(
+            '/certificates/verify/${Uri.encodeComponent(code)}',
+            authenticated: false,
+          )
+          as Map,
     );
-    if (!await learning.isEnrolled(courseId)) {
-      throw StateError('Necesitas una inscripción activa o completada.');
+    if (row['valid'] != true) {
+      throw const ApiException('El certificado no es válido.');
     }
-    final modules = await learning.getModules(courseId);
-    if (!modules.expand((m) => m.lessons).any((l) => l.id == lessonId)) {
-      throw StateError('La lección no pertenece a este curso.');
-    }
-    if (client.auth.currentUser?.id != owner) {
-      throw StateError('La cuenta cambió.');
-    }
-    await client.from(StudentSchema.progress).upsert({
-      'user_id': owner,
-      'course_id': courseId,
-      'lesson_id': lessonId,
-      'completed': true,
-      'completed_at': DateTime.now().toUtc().toIso8601String(),
-    }, onConflict: 'user_id,lesson_id');
+    return StudentCertificate.fromJson(row);
   }
+
+  Future<List<Map<String, dynamic>>> organizations() async =>
+      jsonRows(await api.get('/organizations'));
+  Future<void> joinOrganization(String code, String studentNumber) async {
+    await api.post('/organizations/join', {
+      'joinCode': code.trim().toUpperCase(),
+      'studentNumber': studentNumber.trim(),
+    });
+  }
+
+  Future<ApiPage> organizationCourses(String id, {int page = 1}) => api.page(
+    '/organizations/${Uri.encodeComponent(id)}/courses',
+    query: {'page': '$page', 'limit': '10', 'status': 'published'},
+  );
 }

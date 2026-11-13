@@ -5,8 +5,13 @@ import 'package:video_player/video_player.dart';
 /// Reproduce enlaces HTTPS MP4/HLS dentro de Flutter.
 /// YouTube/Vimeo se abren en el reproductor externo (sin descargar el video).
 class LessonVideoPlayer extends StatefulWidget {
-  const LessonVideoPlayer({super.key, required this.uri});
+  const LessonVideoPlayer({
+    super.key,
+    required this.uri,
+    this.httpHeaders = const {},
+  });
   final Uri uri;
+  final Map<String, String> httpHeaders;
 
   @override
   State<LessonVideoPlayer> createState() => _LessonVideoPlayerState();
@@ -19,8 +24,10 @@ class _LessonVideoPlayerState extends State<LessonVideoPlayer> {
 
   bool get _external {
     final host = widget.uri.host.toLowerCase();
-    return host == 'youtube.com' || host.endsWith('.youtube.com') ||
-        host == 'youtu.be' || host == 'vimeo.com' ||
+    return host == 'youtube.com' ||
+        host.endsWith('.youtube.com') ||
+        host == 'youtu.be' ||
+        host == 'vimeo.com' ||
         host.endsWith('.vimeo.com');
   }
 
@@ -31,7 +38,10 @@ class _LessonVideoPlayerState extends State<LessonVideoPlayer> {
   }
 
   Future<void> _initialize() async {
-    final controller = VideoPlayerController.networkUrl(widget.uri);
+    final controller = VideoPlayerController.networkUrl(
+      widget.uri,
+      httpHeaders: widget.httpHeaders,
+    );
     _controller = controller;
     try {
       await controller.initialize();
@@ -42,7 +52,8 @@ class _LessonVideoPlayerState extends State<LessonVideoPlayer> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'No se pudo reproducir el video. Verifica la URL, el formato y los permisos.';
+        _error =
+            'No se pudo reproducir el video. Verifica la URL, el formato y los permisos.';
       });
     }
   }
@@ -68,44 +79,66 @@ class _LessonVideoPlayerState extends State<LessonVideoPlayer> {
           subtitle: const Text('Se abrirá en YouTube o Vimeo.'),
           trailing: const Icon(Icons.open_in_new),
           onTap: () async {
-            final opened = await launchUrl(widget.uri, mode: LaunchMode.externalApplication);
+            final opened = await launchUrl(
+              widget.uri,
+              mode: LaunchMode.externalApplication,
+            );
             if (!opened && context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('No se pudo abrir el enlace del video.'),
-              ));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('No se pudo abrir el enlace del video.'),
+                ),
+              );
             }
           },
         ),
       );
     }
     if (_error != null) {
-      return Card(child: Padding(padding: const EdgeInsets.all(16), child: Text(_error!)));
+      return Card(
+        child: Padding(padding: const EdgeInsets.all(16), child: Text(_error!)),
+      );
     }
     final controller = _controller;
     if (_loading || controller == null || !controller.value.isInitialized) {
-      return const AspectRatio(aspectRatio: 16 / 9,
-          child: Center(child: CircularProgressIndicator()));
+      return const AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
-    return Column(children: [
-      AspectRatio(
-        aspectRatio: controller.value.aspectRatio,
-        child: VideoPlayer(controller),
-      ),
-      VideoProgressIndicator(controller, allowScrubbing: true,
-          padding: const EdgeInsets.symmetric(vertical: 10)),
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        IconButton.filled(
-          tooltip: controller.value.isPlaying ? 'Pausar' : 'Reproducir',
-          onPressed: () => controller.value.isPlaying
-              ? controller.pause() : controller.play(),
-          icon: Icon(controller.value.isPlaying ? Icons.pause : Icons.play_arrow),
+    return Column(
+      children: [
+        AspectRatio(
+          aspectRatio: controller.value.aspectRatio,
+          child: VideoPlayer(controller),
         ),
-        const SizedBox(width: 12),
-        Text(_format(controller.value.position)),
-        const Text(' / '),
-        Text(_format(controller.value.duration)),
-      ]),
-    ]);
+        VideoProgressIndicator(
+          controller,
+          allowScrubbing: true,
+          padding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton.filled(
+              tooltip: controller.value.isPlaying ? 'Pausar' : 'Reproducir',
+              onPressed:
+                  () =>
+                      controller.value.isPlaying
+                          ? controller.pause()
+                          : controller.play(),
+              icon: Icon(
+                controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(_format(controller.value.position)),
+            const Text(' / '),
+            Text(_format(controller.value.duration)),
+          ],
+        ),
+      ],
+    );
   }
 
   static String _format(Duration d) {

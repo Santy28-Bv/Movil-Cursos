@@ -11,6 +11,14 @@ class StudentSession extends ChangeNotifier {
   int _noticeVersion = 0;
   final Map<String, Course> _cart = {};
   List<StudentNotice> _notices = [];
+  String _profileName = '';
+  String get profileName => _profileName;
+  void updateProfileName(String owner, String name) {
+    if (_userId != owner) return;
+    _profileName = name;
+    notifyListeners();
+  }
+
   List<Course> get cart => List.unmodifiable(_cart.values);
   List<StudentNotice> get notices => List.unmodifiable(_notices);
   int get totalCents => _cart.values.fold(
@@ -26,6 +34,7 @@ class StudentSession extends ChangeNotifier {
     _noticeVersion++;
     _cart.clear();
     _notices = [];
+    _profileName = '';
     notifyListeners();
   }
 

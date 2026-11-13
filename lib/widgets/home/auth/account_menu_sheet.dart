@@ -1,5 +1,6 @@
 import 'package:academix/theme/academix_colors.dart';
 import 'package:flutter/material.dart';
+import '../../../theme/theme_controller.dart';
 
 class AccountMenuSheet extends StatelessWidget {
   final String name;
@@ -11,6 +12,10 @@ class AccountMenuSheet extends StatelessWidget {
   final VoidCallback? onCertificates;
   final VoidCallback? onNotifications;
   final VoidCallback? onCart;
+  final VoidCallback? onOrganizations;
+  final ValueChanged<int>? onHelp;
+  final VoidCallback? onPrices;
+  final VoidCallback? onVerify;
 
   const AccountMenuSheet({
     super.key,
@@ -23,6 +28,10 @@ class AccountMenuSheet extends StatelessWidget {
     this.onCertificates,
     this.onNotifications,
     this.onCart,
+    this.onOrganizations,
+    this.onHelp,
+    this.onPrices,
+    this.onVerify,
   });
 
   void _closeAndRun(BuildContext context, VoidCallback action) {
@@ -194,6 +203,46 @@ class AccountMenuSheet extends StatelessWidget {
                 onTap: () => _closeAndRun(context, onNotifications!),
               ),
 
+            if (onOrganizations != null)
+              _menuTile(
+                icon: Icons.school_outlined,
+                title: 'Mis organizaciones',
+                onTap: () => _closeAndRun(context, onOrganizations!),
+              ),
+
+            if (onPrices != null)
+              _menuTile(
+                icon: Icons.payments_outlined,
+                title: 'Precios',
+                onTap: () => _closeAndRun(context, onPrices!),
+              ),
+            if (onHelp != null) ...[
+              for (var i = 0; i < 3; i++)
+                _menuTile(
+                  icon:
+                      [
+                        Icons.info_outline,
+                        Icons.help_outline,
+                        Icons.mail_outline,
+                      ][i],
+                  title: ['Nosotros', 'Preguntas', 'Contacto'][i],
+                  onTap: () => _closeAndRun(context, () => onHelp!(i)),
+                ),
+            ],
+            if (onVerify != null)
+              _menuTile(
+                icon: Icons.verified_outlined,
+                title: 'Verificar certificado',
+                onTap: () => _closeAndRun(context, onVerify!),
+              ),
+            _menuTile(
+              icon: Icons.contrast,
+              title: 'Cambiar tema claro/oscuro',
+              onTap:
+                  () => _closeAndRun(context, () {
+                    ThemeController.toggle();
+                  }),
+            ),
             _menuTile(
               icon: Icons.switch_account_outlined,
               title: 'Cambiar de cuenta',
