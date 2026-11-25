@@ -42,7 +42,7 @@ class _CatalogFiltersState extends State<CatalogFilters> {
             final categories = snapshot.data ?? [];
             return DropdownButtonFormField<String>(
               isExpanded: true,
-              value: widget.repository.category ?? '',
+              initialValue: widget.repository.category ?? '',
               decoration: const InputDecoration(labelText: 'Categoría'),
               items: [
                 const DropdownMenuItem(
@@ -68,7 +68,7 @@ class _CatalogFiltersState extends State<CatalogFilters> {
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           isExpanded: true,
-          value: widget.repository.level ?? '',
+          initialValue: widget.repository.level ?? '',
           decoration: const InputDecoration(labelText: 'Nivel'),
           items: const [
             DropdownMenuItem(value: '', child: Text('Todos los niveles')),
