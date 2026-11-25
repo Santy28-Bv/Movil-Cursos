@@ -108,8 +108,10 @@ class _CertificateScreenState extends State<CertificateScreen> {
           const SizedBox(height: 16),
           OutlinedButton.icon(onPressed: () async {
             await Clipboard.setData(ClipboardData(text: record.code));
-            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Código copiado.')));
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Código copiado.')));
+            }
           }, icon: const Icon(Icons.copy), label: const Text('Copiar código')),
           const SizedBox(height: 10),
           FilledButton.icon(onPressed: () => _share(record),
