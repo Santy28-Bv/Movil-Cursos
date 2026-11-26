@@ -19,9 +19,17 @@ jobs:
       - run: flutter analyze
       - run: flutter test
       - run: flutter build web --release
+      - name: Configurar Java para Android
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Compilar APK
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: flutter build apk --release
+        run: |
+          flutter config --jdk-dir="$JAVA_HOME"
+          flutter build apk --release
       - name: Guardar APK
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
