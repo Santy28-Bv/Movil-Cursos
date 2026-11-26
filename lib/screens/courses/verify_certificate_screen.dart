@@ -19,7 +19,9 @@ class _VerifyCertificateScreenState extends State<VerifyCertificateScreen> {
 
   void _verify() {
     final code = input.text.trim();
-    if (code.isEmpty) return;
+    if (code.isEmpty) {
+      return;
+    }
     setState(() => lookup =
         StudentRepository(Supabase.instance.client).verify(code));
   }
@@ -47,14 +49,20 @@ class _VerifyCertificateScreenState extends State<VerifyCertificateScreen> {
       FilledButton(onPressed: _verify, child: const Text('Verificar código')),
       if (lookup != null) FutureBuilder<StudentCertificate>(future: lookup,
         builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) return const Padding(
-            padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator()));
-          if (snap.hasError) return Padding(padding: const EdgeInsets.all(18),
-            child: Text('Error al verificar: ${snap.error}',
-              style: const TextStyle(color: Colors.redAccent)));
-          if (snap.data == null) return const Padding(padding: EdgeInsets.all(18),
-            child: Text('No se encontró un certificado con este código.',
-              style: TextStyle(color: Colors.orangeAccent)));
+          if (snap.connectionState != ConnectionState.done) {
+            return const Padding(
+              padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator()));
+          }
+          if (snap.hasError) {
+            return Padding(padding: const EdgeInsets.all(18),
+              child: Text('Error al verificar: ${snap.error}',
+                style: const TextStyle(color: Colors.redAccent)));
+          }
+          if (snap.data == null) {
+            return const Padding(padding: EdgeInsets.all(18),
+              child: Text('No se encontró un certificado con este código.',
+                style: TextStyle(color: Colors.orangeAccent)));
+          }
           final record = snap.data!;
           return Card(color: AcademixColors.card, child: Padding(
             padding: const EdgeInsets.all(18), child: Column(
