@@ -1,4 +1,3 @@
-import 'package:academix/theme/academix_colors.dart';
 import 'package:flutter/material.dart';
 import '../../../theme/theme_controller.dart';
 
@@ -44,20 +43,27 @@ class AccountMenuSheet extends StatelessWidget {
       context: context,
       builder:
           (dialogContext) => AlertDialog(
-            backgroundColor: AcademixColors.card,
-            title: const Text(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            title: Text(
               'Mi información',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(color: Colors.white)),
+                Text(
+                  name,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Text(
                   email,
-                  style: const TextStyle(color: AcademixColors.muted),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -71,16 +77,17 @@ class AccountMenuSheet extends StatelessWidget {
     );
   }
 
-  Widget _menuTile({
+  Widget _menuTile(
+    BuildContext context, {
     required IconData icon,
     required String title,
     String? subtitle,
     VoidCallback? onTap,
-    Color color = Colors.white,
+    Color? color,
   }) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: AcademixColors.lavender),
+      leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
       title: Text(
         title,
         style: TextStyle(color: color, fontWeight: FontWeight.w500),
@@ -90,12 +97,15 @@ class AccountMenuSheet extends StatelessWidget {
               ? null
               : Text(
                 subtitle,
-                style: const TextStyle(
-                  color: AcademixColors.muted,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
                 ),
               ),
-      trailing: const Icon(Icons.chevron_right, color: AcademixColors.muted),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
       onTap: onTap,
     );
   }
@@ -110,10 +120,10 @@ class AccountMenuSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Mi cuenta',
               style: TextStyle(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
@@ -123,12 +133,13 @@ class AccountMenuSheet extends StatelessWidget {
 
             Row(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 28,
-                  backgroundColor: Color(0xFF442778),
+                  backgroundColor:
+                      Theme.of(context).colorScheme.primaryContainer,
                   child: Icon(
                     Icons.person,
-                    color: AcademixColors.lavender,
+                    color: Theme.of(context).colorScheme.primary,
                     size: 30,
                   ),
                 ),
@@ -141,8 +152,8 @@ class AccountMenuSheet extends StatelessWidget {
                     children: [
                       Text(
                         name,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
                         ),
@@ -150,8 +161,8 @@ class AccountMenuSheet extends StatelessWidget {
                       Text(
                         email,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AcademixColors.muted,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 13,
                         ),
                       ),
@@ -162,9 +173,10 @@ class AccountMenuSheet extends StatelessWidget {
             ),
 
             const SizedBox(height: 22),
-            const Divider(color: AcademixColors.border),
+            Divider(color: Theme.of(context).colorScheme.outlineVariant),
 
             _menuTile(
+              context,
               icon: Icons.person_outline,
               title: 'Mi información',
               subtitle: 'Consultar y actualizar mis datos',
@@ -175,29 +187,33 @@ class AccountMenuSheet extends StatelessWidget {
             ),
 
             _menuTile(
+              context,
               icon: Icons.menu_book_outlined,
               title: 'Mis cursos',
               subtitle: 'Consultar tu aprendizaje',
               onTap: () => _closeAndRun(context, onMyCourses),
             ),
 
-            const Divider(color: AcademixColors.border),
+            Divider(color: Theme.of(context).colorScheme.outlineVariant),
             const SizedBox(height: 8),
 
             if (onCart != null)
               _menuTile(
+                context,
                 icon: Icons.shopping_cart_outlined,
                 title: 'Mi carrito',
                 onTap: () => _closeAndRun(context, onCart!),
               ),
             if (onCertificates != null)
               _menuTile(
+                context,
                 icon: Icons.workspace_premium_outlined,
                 title: 'Mis certificados',
                 onTap: () => _closeAndRun(context, onCertificates!),
               ),
             if (onNotifications != null)
               _menuTile(
+                context,
                 icon: Icons.notifications_outlined,
                 title: 'Notificaciones',
                 onTap: () => _closeAndRun(context, onNotifications!),
@@ -205,6 +221,7 @@ class AccountMenuSheet extends StatelessWidget {
 
             if (onOrganizations != null)
               _menuTile(
+                context,
                 icon: Icons.school_outlined,
                 title: 'Mis organizaciones',
                 onTap: () => _closeAndRun(context, onOrganizations!),
@@ -212,6 +229,7 @@ class AccountMenuSheet extends StatelessWidget {
 
             if (onPrices != null)
               _menuTile(
+                context,
                 icon: Icons.payments_outlined,
                 title: 'Precios',
                 onTap: () => _closeAndRun(context, onPrices!),
@@ -219,6 +237,7 @@ class AccountMenuSheet extends StatelessWidget {
             if (onHelp != null) ...[
               for (var i = 0; i < 3; i++)
                 _menuTile(
+                  context,
                   icon:
                       [
                         Icons.info_outline,
@@ -231,11 +250,13 @@ class AccountMenuSheet extends StatelessWidget {
             ],
             if (onVerify != null)
               _menuTile(
+                context,
                 icon: Icons.verified_outlined,
                 title: 'Verificar certificado',
                 onTap: () => _closeAndRun(context, onVerify!),
               ),
             _menuTile(
+              context,
               icon: Icons.contrast,
               title: 'Cambiar tema claro/oscuro',
               onTap:
@@ -244,6 +265,7 @@ class AccountMenuSheet extends StatelessWidget {
                   }),
             ),
             _menuTile(
+              context,
               icon: Icons.switch_account_outlined,
               title: 'Cambiar de cuenta',
               subtitle: 'Iniciar sesión con otra cuenta',
@@ -251,10 +273,11 @@ class AccountMenuSheet extends StatelessWidget {
             ),
 
             _menuTile(
+              context,
               icon: Icons.logout,
               title: 'Cerrar sesión',
               subtitle: 'Salir de Academix',
-              color: const Color(0xFFFB7185),
+              color: Theme.of(context).colorScheme.error,
               onTap: () => _closeAndRun(context, onSignOut),
             ),
           ],

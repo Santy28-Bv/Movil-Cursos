@@ -61,7 +61,12 @@ class AuthService {
 
   // CERRAR SESIÓN
   Future<void> logout() async {
-    await _supabase.auth.signOut();
+    final owner = currentUser?.id;
+    try {
+      await _supabase.auth.signOut();
+    } finally {
+      if (owner != null) await _api.clearLibrary(owner);
+    }
   }
 
   // USUARIO ACTUAL

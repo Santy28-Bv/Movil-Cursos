@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../theme/academix_colors.dart';
 
 /// Ventajas de aprendizaje, sin presentar cifras ficticias.
 class HomeStats extends StatelessWidget {
@@ -15,7 +14,7 @@ class HomeStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.fromLTRB(20, 23, 20, 22),
-    color: AcademixColors.card.withValues(alpha: .6),
+    color: Theme.of(context).colorScheme.surface.withValues(alpha: .6),
     child: LayoutBuilder(
       builder: (context, limits) {
         final width = (limits.maxWidth - 12) / 2;
@@ -30,18 +29,18 @@ class HomeStats extends StatelessWidget {
                   children: [
                     Text(
                       item.$1,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 25,
                         fontWeight: FontWeight.w900,
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       item.$2,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AcademixColors.muted,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,
                       ),
                     ),

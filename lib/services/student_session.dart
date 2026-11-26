@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 import '../models/course.dart';
 import '../models/student_data.dart';
 
@@ -11,6 +12,9 @@ class StudentSession extends ChangeNotifier {
   int _noticeVersion = 0;
   final Map<String, Course> _cart = {};
   List<StudentNotice> _notices = [];
+  int? _unreadCount;
+  String? _checkoutKey;
+  bool _checkingOut = false;
   String _profileName = '';
   String get profileName => _profileName;
   void updateProfileName(String owner, String name) {
@@ -25,7 +29,10 @@ class StudentSession extends ChangeNotifier {
     0,
     (sum, course) => sum + (course.price! * 100).round(),
   );
-  int get unreadCount => _notices.where((n) => !n.isRead).length;
+  int get unreadCount =>
+      _unreadCount ?? _notices.where((n) => !n.isRead).length;
+  bool get checkingOut => _checkingOut;
+  bool get unreadCountKnown => _unreadCount != null;
 
   void bindUser(String? id) {
     if (_userId == id) return;
@@ -34,6 +41,9 @@ class StudentSession extends ChangeNotifier {
     _noticeVersion++;
     _cart.clear();
     _notices = [];
+    _unreadCount = null;
+    _checkoutKey = null;
+    _checkingOut = false;
     _profileName = '';
     notifyListeners();
   }
@@ -46,24 +56,76 @@ class StudentSession extends ChangeNotifier {
     if (course.id.isEmpty || price == null || !price.isFinite || price <= 0) {
       throw StateError('Este curso no tiene un precio de compra disponible.');
     }
+    if (_checkingOut || _cart.containsKey(course.id)) return;
+    if (_cart.length >= 50) {
+      throw StateError('El carrito admite hasta 50 cursos.');
+    }
     _cart[course.id] = course;
+    _checkoutKey = null;
     notifyListeners();
   }
 
   void removeFromCart(String id) {
-    _cart.remove(id);
+    removeFromCartIds([id]);
+  }
+
+  void removeFromCartIds(Iterable<String> ids) {
+    if (_checkingOut) return;
+    final before = _cart.length;
+    for (final id in ids) {
+      _cart.remove(id);
+    }
+    if (before == _cart.length) return;
+    _checkoutKey = null;
     notifyListeners();
   }
 
-  Future<void> refreshNotices(
-    Future<List<StudentNotice>> Function() load,
+  /// Una respuesta perdida permite reintentar el mismo carrito con la misma clave.
+  Future<T?> checkout<T>(
+    Future<T> Function(List<String> ids, String key) confirm,
   ) async {
+    if (_userId == null || _checkingOut || _cart.isEmpty) return null;
+    final generation = _generation;
+    final ids = List<String>.unmodifiable(_cart.keys);
+    final key = _checkoutKey ??= const Uuid().v4();
+    _checkingOut = true;
+    notifyListeners();
+    try {
+      final result = await confirm(ids, key);
+      if (generation != _generation) return null;
+      _cart.clear();
+      _checkoutKey = null;
+      return result;
+    } finally {
+      if (generation == _generation) {
+        _checkingOut = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> refreshNotices(
+    Future<List<StudentNotice>> Function() load, {
+    Future<int> Function()? count,
+  }) async {
     if (_userId == null) return;
     final generation = _generation;
     final version = ++_noticeVersion;
     final result = await load();
     if (generation != _generation || version != _noticeVersion) return;
     _notices = result;
+    _unreadCount = null;
+    notifyListeners();
+    if (count != null) await refreshUnreadCount(count);
+  }
+
+  Future<void> refreshUnreadCount(Future<int> Function() load) async {
+    if (_userId == null) return;
+    final generation = _generation;
+    final version = _noticeVersion;
+    final result = await load();
+    if (generation != _generation || version != _noticeVersion) return;
+    _unreadCount = result;
     notifyListeners();
   }
 
@@ -73,6 +135,11 @@ class StudentSession extends ChangeNotifier {
     await save();
     if (generation != _generation) return;
     _noticeVersion++;
+    if (_unreadCount != null &&
+        _notices.any((n) => n.id == id && !n.isRead) &&
+        _unreadCount! > 0) {
+      _unreadCount = _unreadCount! - 1;
+    }
     _notices = _notices.map((n) => n.id == id ? n.read() : n).toList();
     notifyListeners();
   }
@@ -84,6 +151,7 @@ class StudentSession extends ChangeNotifier {
     await save();
     if (generation != _generation) return;
     _noticeVersion++;
+    _unreadCount = 0;
     _notices = _notices.map((n) => ids.contains(n.id) ? n.read() : n).toList();
     notifyListeners();
   }

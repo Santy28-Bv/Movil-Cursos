@@ -55,7 +55,7 @@ class _FeaturedCoursesState extends State<FeaturedCourses> {
             Text(
               'Cursos destacados',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.bold,
               ),
             ),

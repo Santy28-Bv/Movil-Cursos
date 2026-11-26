@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../repositories/student_repository.dart';
+import '../../services/academix_api.dart';
 import '../../services/student_session.dart';
 import '../../widgets/student/student_banner.dart';
 
@@ -24,21 +25,29 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _refresh() async {
+    if (_loading || _saving) return;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      await _session.refreshNotices(_repository.notifications);
-    } catch (_) {
-      if (mounted) setState(() => _error = 'No se pudieron cargar los avisos.');
+      await _session.refreshNotices(
+        _repository.notifications,
+        count: _repository.unreadNoticeCount,
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = studentError(error, 'No se pudieron cargar los avisos.');
+        });
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   Future<void> _read([String? id]) async {
-    if (_saving) return;
+    if (_saving || _loading) return;
     setState(() => _saving = true);
     try {
       if (id == null) {
@@ -46,16 +55,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       } else {
         await _session.markRead(id, () => _repository.markRead(id));
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo guardar la lectura. Intenta nuevamente.'),
+          SnackBar(
+            content: Text(
+              studentError(
+                error,
+                'No se pudo guardar la lectura. Intenta nuevamente.',
+              ),
+            ),
           ),
         );
       }
+      return;
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+    try {
+      await _session.refreshUnreadCount(_repository.unreadNoticeCount);
+    } on ApiException {
+      // La lectura ya se guardó. El siguiente refresco obtiene el total.
     }
   }
 
@@ -82,7 +102,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               children: [
                 StudentBanner(
                   title: 'Al día contigo',
-                  message: '${_session.unreadCount} notificaciones sin leer',
+                  message:
+                      _session.unreadCountKnown
+                          ? '${_session.unreadCount} notificaciones sin leer'
+                          : 'Consulta los avisos de tu cuenta.',
                 ),
                 if (_loading) const LinearProgressIndicator(),
                 if (_error != null) ...[
@@ -96,7 +119,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   const Text('No tienes notificaciones.'),
                 if (_session.unreadCount > 0)
                   OutlinedButton.icon(
-                    onPressed: _saving ? null : () => _read(),
+                    onPressed: _saving || _loading ? null : () => _read(),
                     icon: const Icon(Icons.done_all),
                     label: const Text('Marcar todas como leídas'),
                   ),
@@ -117,7 +140,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               : IconButton(
                                 tooltip: 'Marcar como leída',
                                 onPressed:
-                                    _saving ? null : () => _read(notice.id),
+                                    _saving || _loading
+                                        ? null
+                                        : () => _read(notice.id),
                                 icon: const Icon(Icons.done),
                               ),
                     ),

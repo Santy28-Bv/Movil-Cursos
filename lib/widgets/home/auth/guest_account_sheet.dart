@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../theme/academix_colors.dart';
+import '../../../theme/theme_controller.dart';
 
 /// Menú visible sin sesión. No consulta ni modifica datos privados.
 class GuestAccountSheet extends StatelessWidget {
@@ -28,27 +29,30 @@ class GuestAccountSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(
+          Icon(
             Icons.school_rounded,
-            color: AcademixColors.lavender,
+            color: Theme.of(context).colorScheme.primary,
             size: 42,
           ),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'Bienvenido a Academix',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 23,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             'Explora los cursos sin una cuenta. '
             'Inicia sesión para acceder a las funciones de aprendizaje.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AcademixColors.muted, height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
@@ -66,12 +70,19 @@ class GuestAccountSheet extends StatelessWidget {
             icon: const Icon(Icons.person_add_alt_1_rounded),
             label: const Text('Crear cuenta'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AcademixColors.lavender,
+              foregroundColor: Theme.of(context).colorScheme.primary,
               minimumSize: const Size.fromHeight(50),
-              side: const BorderSide(color: AcademixColors.border),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
             ),
           ),
           const Divider(),
+          TextButton.icon(
+            onPressed: ThemeController.toggle,
+            icon: const Icon(Icons.contrast),
+            label: const Text('Cambiar tema claro/oscuro'),
+          ),
           if (onPrices != null)
             TextButton(onPressed: onPrices, child: const Text('Precios')),
           if (onHelp != null)

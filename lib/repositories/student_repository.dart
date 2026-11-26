@@ -8,8 +8,16 @@ class StudentRepository {
   final AcademixApi api;
   Future<List<StudentNotice>> notifications() async =>
       jsonRows(
-        await api.get('/notifications'),
+        await api.get('/notifications', query: {'limit': '30'}),
       ).map(StudentNotice.fromJson).toList();
+  Future<int> unreadNoticeCount() async {
+    final result = await api.get('/notifications/unread-count');
+    if (result is Map && result['count'] is int && result['count'] >= 0) {
+      return result['count'] as int;
+    }
+    throw const ApiException('No pudimos consultar el total de avisos.');
+  }
+
   Future<void> markRead([String? id]) async {
     await api.patch(
       id == null

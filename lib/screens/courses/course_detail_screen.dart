@@ -10,6 +10,7 @@ import '../../theme/academix_colors.dart';
 import '../../widgets/student/student_guard.dart';
 import '../../widgets/student/course_reviews.dart';
 import '../auth/login_screen.dart';
+import '../student/cart_screen.dart';
 import 'lesson_screen.dart';
 import 'instructor_screen.dart';
 import '../../widgets/home/course_card.dart';
@@ -89,13 +90,14 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
       }
     } catch (error) {
       if (mounted && version == _accessVersion) {
-        setState(
-          () =>
-              _accessError = studentError(
-                error,
-                'No pudimos comprobar tu inscripción.',
-              ),
-        );
+        setState(() {
+          _enrolled = false;
+          _completed = false;
+          _accessError = studentError(
+            error,
+            'No pudimos comprobar tu inscripción.',
+          );
+        });
       }
     } finally {
       if (mounted && version == _accessVersion) {
@@ -125,6 +127,16 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
     if (mounted) _checkAccess();
   }
 
+  Future<void> _openCart() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StudentGuard(builder: (_) => const CartScreen()),
+      ),
+    );
+    if (mounted) await _checkAccess();
+  }
+
   Future<void> _primary(Course course, {bool checkIncluded = false}) async {
     if (_saving || _checking) return;
     if (_owner == null) {
@@ -142,10 +154,13 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
     }
     if (course.price != null && course.price! > 0 && !checkIncluded) {
       try {
-        StudentSession.instance.addToCart(course);
-        _message('Curso añadido a tu carrito.');
-      } catch (error) {
-        _message(studentError(error, 'No pudimos añadir el curso.'));
+        final session = StudentSession.instance;
+        if (!session.cart.any((item) => item.id == course.id)) {
+          session.addToCart(course);
+        }
+        await _openCart();
+      } on StateError catch (error) {
+        _message(error.message.toString());
       }
       return;
     }
@@ -176,9 +191,14 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
       final enrollment = await _learning.enroll(course);
       if (!mounted || owner != _owner) return;
       setState(() {
-        _enrolled = true;
+        _enrolled = enrollment.accessActive;
         _completed = enrollment.completed;
       });
+      if (!_enrolled) {
+        _message('Tu inscripción todavía no tiene acceso al aula.');
+        return;
+      }
+      StudentSession.instance.removeFromCart(course.id);
       _message('Inscripción confirmada. El curso ya está en Mis cursos.');
       await _openLesson(course);
     } catch (error) {
@@ -194,7 +214,17 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   );
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Detalle del curso')),
+    appBar: AppBar(
+      title: const Text('Detalle del curso'),
+      actions: [
+        if (_owner != null)
+          IconButton(
+            tooltip: 'Actualizar acceso',
+            onPressed: _checking || _saving ? null : _checkAccess,
+            icon: const Icon(Icons.refresh),
+          ),
+      ],
+    ),
     body: FutureBuilder<Course>(
       future: _future,
       builder: (context, snapshot) {
@@ -231,12 +261,8 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(24),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF3B0764), Color(0xFF1E1235)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+              decoration: BoxDecoration(
+                gradient: AcademixColors.softGradient(context),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,14 +273,14 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                     course.title,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 14),
                   Text(
                     course.shortDescription,
-                    style: const TextStyle(
-                      color: Color(0xFFDDD6FE),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       height: 1.6,
                       fontSize: 16,
                     ),
@@ -276,7 +302,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                             ),
                     child: Text(
                       'Por ${course.instructor}',
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -297,20 +325,26 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                       aspectRatio: 16 / 9,
                       child:
                           course.imageUrl.isEmpty
-                              ? const ColoredBox(
-                                color: Color(0xFF261842),
+                              ? ColoredBox(
+                                color:
+                                    Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer,
                                 child: Icon(
                                   Icons.school_outlined,
                                   size: 64,
-                                  color: AcademixColors.lavender,
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                               )
                               : Image.network(
                                 course.imageUrl,
                                 fit: BoxFit.cover,
                                 errorBuilder:
-                                    (_, __, ___) => const ColoredBox(
-                                      color: Color(0xFF261842),
+                                    (_, __, ___) => ColoredBox(
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).colorScheme.primaryContainer,
                                       child: Icon(
                                         Icons.school_outlined,
                                         size: 64,
@@ -334,7 +368,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            course.priceLabel,
+                            _enrolled ? 'En Mis cursos' : course.priceLabel,
                             style: Theme.of(context).textTheme.headlineMedium,
                           ),
                           const SizedBox(height: 12),
@@ -369,7 +403,11 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                                   : _owner == null
                                   ? 'Iniciar sesión para continuar'
                                   : course.price != null && course.price! > 0
-                                  ? 'Añadir al carrito'
+                                  ? StudentSession.instance.cart.any(
+                                        (item) => item.id == course.id,
+                                      )
+                                      ? 'Ver carrito'
+                                      : 'Añadir al carrito'
                                   : 'Inscribirme',
                             ),
                           ),
@@ -405,9 +443,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.check,
-                              color: AcademixColors.lavender,
+                              color: Theme.of(context).colorScheme.primary,
                               size: 20,
                             ),
                             const SizedBox(width: 10),
@@ -437,7 +475,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                                 _enrolled
                                     ? Icons.play_circle_outline
                                     : Icons.lock_outline,
-                                color: AcademixColors.lavender,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                               title: Text(lesson.title),
                               subtitle: Text('${lesson.durationMinutes} min'),

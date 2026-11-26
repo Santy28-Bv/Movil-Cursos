@@ -15,12 +15,40 @@ class LearningRepository {
               as Map,
         ),
       );
-  Future<bool> isEnrolled(String courseId) async {
+  Future<bool> isEnrolled(String courseId) async =>
+      (await ownedCourseIds([courseId])).contains(courseId);
+
+  Future<Set<String>> ownedCourseIds(List<String> courseIds) async {
+    if (courseIds.isEmpty) return {};
     final ids = await api.get(
       '/users/me/course-ownership',
-      query: {'courseIds': courseId},
+      query: {'courseIds': courseIds.join(',')},
     );
-    return ids is List && ids.contains(courseId);
+    if (ids is! List || ids.any((id) => id is! String)) {
+      throw const ApiException('No pudimos comprobar tus cursos.');
+    }
+    return ids.cast<String>().toSet().intersection(courseIds.toSet());
+  }
+
+  Future<CheckoutReceipt> checkout(List<String> ids, String key) async {
+    final data = await api.post('/checkout/simulated', {
+      'courseIds': ids,
+      'idempotencyKey': key,
+    });
+    if (data is Map &&
+        data['mode'] == 'simulated' &&
+        data['currency'] == 'MXN' &&
+        data['total'] is num &&
+        (data['total'] as num).isFinite &&
+        (data['total'] as num) >= 0 &&
+        data['id'] is String &&
+        (data['id'] as String).isNotEmpty) {
+      return CheckoutReceipt(total: data['total'] as num);
+    }
+    throw const ApiException(
+      'No pudimos confirmar la compra. Reintenta desde el carrito.',
+      code: 'INVALID_RESPONSE',
+    );
   }
 
   Future<EnrolledCourse?> enrollment(String courseId) async {
@@ -28,9 +56,11 @@ class LearningRepository {
       '/users/me/courses',
       query: {'page': '1', 'limit': '1', 'courseIds': courseId},
     );
-    return result.items.isEmpty
-        ? null
-        : EnrolledCourse.fromJson(result.items.single);
+    for (final row in result.items) {
+      final entry = EnrolledCourse.fromJson(row);
+      if (entry.course.id == courseId) return entry;
+    }
+    return null;
   }
 
   /// El servidor comparte las reglas de gratuidad y membresía con la web.
@@ -60,6 +90,11 @@ class LearningRepository {
       'completed': completed,
     });
   }
+}
+
+class CheckoutReceipt {
+  const CheckoutReceipt({required this.total});
+  final num total;
 }
 
 class EnrolledCourse {

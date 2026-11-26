@@ -3,6 +3,7 @@ import 'package:academix/screens/courses/my_courses_screen.dart';
 import 'package:academix/screens/courses/course_detail_screen.dart';
 import 'package:academix/screens/courses/lesson_screen.dart';
 import 'package:academix/screens/student/profile_screen.dart';
+import 'package:academix/screens/student/cart_screen.dart';
 import 'package:academix/models/course.dart';
 import 'package:academix/repositories/course_repository.dart';
 import 'package:academix/repositories/learning_repository.dart';
@@ -10,6 +11,7 @@ import 'package:academix/repositories/profile_repository.dart';
 import 'package:academix/repositories/student_repository.dart';
 import 'package:academix/widgets/student/course_reviews.dart';
 import 'package:academix/services/academix_api.dart';
+import 'package:academix/services/student_session.dart';
 import 'package:academix/theme/academix_theme.dart';
 import 'package:academix/widgets/student/student_guard.dart';
 import 'package:flutter/material.dart';
@@ -83,6 +85,7 @@ void main() {
   late Map<String, dynamic> profile;
   late bool complete;
   late bool failCourse;
+  late bool purchased;
   late List<http.Request> requests;
   setUp(() async {
     final client = Supabase.instance.client;
@@ -97,6 +100,7 @@ void main() {
     };
     complete = false;
     failCourse = false;
+    purchased = false;
     requests = [];
     api = AcademixApi(
       client,
@@ -130,7 +134,15 @@ void main() {
             'learningHours': 2,
           };
         } else if (r.url.path.endsWith('/course-ownership')) {
-          data = ['c1'];
+          data = ['c1', if (purchased) 'c2'];
+        } else if (r.url.path.endsWith('/checkout/simulated')) {
+          purchased = true;
+          data = {
+            'mode': 'simulated',
+            'currency': 'MXN',
+            'id': 'recibo',
+            'total': 125,
+          };
         } else if (r.url.path.endsWith('/learning')) {
           data = {
             'id': 'c1',
@@ -167,8 +179,14 @@ void main() {
               'totalLessons': 1,
               'progressPercentage': 0,
             },
+            if (purchased)
+              {
+                'course': {'id': 'c2', 'title': 'Dart móvil', 'price': 125},
+                'status': 'in_progress',
+                'accessActive': true,
+              },
           ];
-          pagination = {'page': 1, 'limit': 10, 'total': 1};
+          pagination = {'page': 1, 'limit': 10, 'total': (data as List).length};
         } else if (r.url.path == '/api/v1/courses/c1') {
           data = _course;
         } else {
@@ -186,6 +204,76 @@ void main() {
         );
       }),
     );
+  });
+  testWidgets('compra disponible y abre los cursos de la cuenta', (
+    tester,
+  ) async {
+    final session = StudentSession()..bindUser('ana');
+    addTearDown(session.dispose);
+    session.addToCart(Course.fromJson({..._course, 'price': 100}));
+    session.addToCart(
+      Course.fromJson({'id': 'c2', 'title': 'Dart móvil', 'price': 125}),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AcademixTheme.light,
+        home: CartScreen(
+          session: session,
+          repository: LearningRepository(Supabase.instance.client, api: api),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(session.cart.single.id, 'c2');
+    await tester.tap(find.text('Comprar cursos'));
+    await tester.pumpAndSettle();
+    expect(purchased, isFalse);
+    await tester.tap(find.text('Confirmar'));
+    await tester.pumpAndSettle();
+    expect(purchased, isTrue);
+    expect(session.cart, isEmpty);
+    expect(find.text('Compra simulada confirmada'), findsOneWidget);
+    await tester.tap(find.text('Ir a Mis cursos'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Dart móvil'), 200);
+    expect(find.text('Dart móvil'), findsOneWidget);
+  });
+
+  testWidgets('carrito permite quitar cursos en pantalla de 320 px', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final session = StudentSession()..bindUser('ana');
+    addTearDown(session.dispose);
+    session.addToCart(
+      const Course(
+        id: '1',
+        title: 'Un curso con un título muy largo para probar el ancho',
+        description: '',
+        category: '',
+        imageUrl: '',
+        price: 12.25,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AcademixTheme.dark,
+        home: CartScreen(
+          session: session,
+          repository: LearningRepository(Supabase.instance.client, api: api),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Total estimado: 12.25 MXN'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pump();
+    expect(find.textContaining('Tu carrito está vacío'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
   void narrow(WidgetTester tester) {
     tester.view.physicalSize = const Size(320, 700);

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/api_settings.dart';
 
@@ -55,6 +56,12 @@ class AcademixApi {
   final Duration timeout;
 
   Uri endpoint(String path, [Map<String, String> query = const {}]) {
+    if (base.host.isEmpty) {
+      throw const ApiException(
+        'Esta versión de la app requiere una dirección HTTPS de Academix.',
+        code: 'API_NOT_CONFIGURED',
+      );
+    }
     final relative = Uri.parse(path);
     if (!['http', 'https'].contains(base.scheme) ||
         base.host.isEmpty ||
@@ -141,13 +148,58 @@ class AcademixApi {
     Map<String, dynamic>? body,
     bool authenticated = true,
   }) async {
-    final response = await _send(
-      method,
-      path,
-      query: query,
-      body: body,
-      authenticated: authenticated,
-    );
+    final firstCatalog =
+        path == '/courses' &&
+        query['page'] == '1' &&
+        query['limit'] == '10' &&
+        query.keys.every((key) => key == 'page' || key == 'limit');
+    final cacheable =
+        method == 'GET' &&
+        !authenticated &&
+        (firstCatalog || path == '/courses/featured' || path == '/categories');
+    final owner = client.auth.currentUser?.id;
+    final library =
+        method == 'GET' &&
+        authenticated &&
+        owner != null &&
+        path == '/users/me/courses' &&
+        query['page'] == '1' &&
+        query['limit'] == '10' &&
+        query.keys.every(
+          (name) => ['page', 'limit', 'status'].contains(name),
+        ) &&
+        [null, 'in_progress', 'completed'].contains(query['status']);
+    final generation = _libraryGeneration;
+    bool sameOwner() =>
+        !library ||
+        (client.auth.currentUser?.id == owner &&
+            _libraryGeneration == generation);
+    final key =
+        library
+            ? '${_libraryPrefix(owner)}${query['status'] ?? 'all'}'
+            : cacheable
+            ? 'academix.public.v1:${endpoint(path, query)}'
+            : null;
+    late final http.Response response;
+    try {
+      response = await _send(
+        method,
+        path,
+        query: query,
+        body: body,
+        authenticated: authenticated,
+      );
+    } on ApiException catch (error) {
+      if (key != null && sameOwner() && error.code == 'NETWORK_ERROR') {
+        final saved = await _readPublicSnapshot(key);
+        if (saved != null && sameOwner()) return saved;
+      }
+      rethrow;
+    }
+    if (key != null && [502, 503, 504].contains(response.statusCode)) {
+      final saved = await _readPublicSnapshot(key);
+      if (saved != null && sameOwner()) return saved;
+    }
     if (response.statusCode == 204) return {'success': true, 'data': null};
     dynamic payload;
     try {
@@ -186,7 +238,48 @@ class AcademixApi {
         code: 'INVALID_RESPONSE',
       );
     }
+    if (key != null &&
+        payload['data'] is List &&
+        (!(firstCatalog || library) || payload['pagination'] is Map)) {
+      try {
+        final prefs = SharedPreferencesAsync();
+        if (sameOwner()) {
+          await prefs.setString(key, jsonEncode(payload));
+          if (!sameOwner()) await prefs.remove(key);
+        }
+      } catch (_) {
+        // A storage failure does not prevent online browsing.
+      }
+    }
     return payload;
+  }
+
+  static int _libraryGeneration = 0;
+
+  String _libraryPrefix(String owner) => 'academix.library.v1:$base:$owner:';
+
+  Future<void> clearLibrary(String owner) async {
+    _libraryGeneration++;
+    final prefs = SharedPreferencesAsync();
+    for (final status in ['all', 'in_progress', 'completed']) {
+      await prefs.remove('${_libraryPrefix(owner)}$status');
+    }
+  }
+
+  Future<Map<String, dynamic>?> _readPublicSnapshot(String key) async {
+    try {
+      final value = await SharedPreferencesAsync().getString(key);
+      if (value == null) return null;
+      final decoded = jsonDecode(value);
+      if (decoded is Map<String, dynamic> &&
+          decoded['success'] == true &&
+          decoded['data'] is List) {
+        return decoded;
+      }
+    } catch (_) {
+      // Corrupt or unavailable snapshots require a successful network read.
+    }
+    return null;
   }
 
   Future<ApiBinary> binary(String path) async {

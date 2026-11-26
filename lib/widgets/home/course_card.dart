@@ -12,9 +12,9 @@ class CourseCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     margin: const EdgeInsets.only(bottom: 17),
     decoration: BoxDecoration(
-      color: AcademixColors.card,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AcademixColors.border),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       boxShadow: const [
         BoxShadow(
           color: Color(0x30000000),
@@ -52,8 +52,8 @@ class CourseCard extends StatelessWidget {
                     course.category.toUpperCase(),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AcademixColors.lavender,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
                       fontSize: 11,
                       letterSpacing: 1,
                       fontWeight: FontWeight.bold,
@@ -64,8 +64,8 @@ class CourseCard extends StatelessWidget {
                     course.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 19,
                       fontWeight: FontWeight.bold,
                     ),
@@ -77,8 +77,8 @@ class CourseCard extends StatelessWidget {
                         : course.shortDescription,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AcademixColors.muted,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 13,
                       height: 1.5,
                     ),
@@ -89,17 +89,17 @@ class CourseCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           course.priceLabel,
-                          style: const TextStyle(
-                            color: AcademixColors.lavender,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
                             fontSize: 19,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                       ),
-                      const Text(
+                      Text(
                         'Ver curso',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
                         ),
@@ -126,15 +126,13 @@ class _ImagePlaceholder extends StatelessWidget {
   const _ImagePlaceholder();
 
   @override
-  Widget build(BuildContext context) => const DecoratedBox(
-    decoration: BoxDecoration(
-      gradient: LinearGradient(colors: [Color(0xFF48216D), Color(0xFF253957)]),
-    ),
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(gradient: AcademixColors.softGradient(context)),
     child: Center(
       child: Icon(
         Icons.auto_stories_rounded,
         size: 64,
-        color: AcademixColors.lavender,
+        color: Theme.of(context).colorScheme.primary,
       ),
     ),
   );

@@ -7,12 +7,14 @@ class HomeHeader extends StatelessWidget {
     this.isAuthenticated = false,
     this.onNotifications,
     this.unreadCount = 0,
+    this.unreadCountKnown = true,
   });
 
   final VoidCallback onProfile;
   final bool isAuthenticated;
   final VoidCallback? onNotifications;
   final int unreadCount;
+  final bool unreadCountKnown;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -29,11 +31,11 @@ class HomeHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 9),
-        const Expanded(
+        Expanded(
           child: Text(
             'Academix',
             style: TextStyle(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 23,
               fontWeight: FontWeight.w900,
             ),
@@ -41,7 +43,10 @@ class HomeHeader extends StatelessWidget {
         ),
         if (isAuthenticated && onNotifications != null)
           IconButton(
-            tooltip: 'Notificaciones: $unreadCount sin leer',
+            tooltip:
+                unreadCountKnown
+                    ? 'Notificaciones: $unreadCount sin leer'
+                    : 'Notificaciones',
             onPressed: onNotifications,
             icon: Badge(
               isLabelVisible: unreadCount > 0,
@@ -56,7 +61,7 @@ class HomeHeader extends StatelessWidget {
             isAuthenticated
                 ? Icons.account_circle_outlined
                 : Icons.login_rounded,
-            color: Colors.white70,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             size: 27,
           ),
         ),

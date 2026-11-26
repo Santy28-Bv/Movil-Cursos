@@ -1,6 +1,7 @@
 import 'package:academix/screens/services/auth_service.dart';
 import 'package:academix/widgets/home/auth/auth_layout.dart';
 import 'package:flutter/material.dart';
+import '../../theme/academix_colors.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'register_screen.dart';
@@ -150,7 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   _showPassword
                       ? Icons.visibility_outlined
                       : Icons.visibility_off_outlined,
-                  color: AuthColors.muted,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 onPressed: () {
                   setState(() {
@@ -177,8 +178,9 @@ class _LoginScreenState extends State<LoginScreen> {
               child: FilledButton(
                 onPressed: _loading ? null : _login,
                 style: FilledButton.styleFrom(
-                  backgroundColor: AuthColors.purple,
-                  disabledBackgroundColor: AuthColors.border,
+                  backgroundColor: AcademixColors.purple,
+                  disabledBackgroundColor:
+                      Theme.of(context).colorScheme.outlineVariant,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -208,18 +210,20 @@ class _LoginScreenState extends State<LoginScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Flexible(
+                Flexible(
                   child: Text(
                     '¿No tienes una cuenta?',
-                    style: TextStyle(color: AuthColors.muted),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 TextButton(
                   onPressed: _openRegister,
-                  child: const Text(
+                  child: Text(
                     'Regístrate',
                     style: TextStyle(
-                      color: Color(0xFFC4B5FD),
+                      color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

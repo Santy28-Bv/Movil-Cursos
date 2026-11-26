@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../theme/academix_colors.dart';
 
 class CourseCatalogHeader extends StatelessWidget {
   const CourseCatalogHeader({
@@ -19,47 +18,50 @@ class CourseCatalogHeader extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'EXPLORA',
           style: TextStyle(
-            color: AcademixColors.lavender,
+            color: Theme.of(context).colorScheme.primary,
             fontSize: 11,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.3,
           ),
         ),
         const SizedBox(height: 7),
-        const Text(
+        Text(
           'Catálogo de cursos',
           style: TextStyle(
             fontSize: 27,
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.w900,
           ),
         ),
         const SizedBox(height: 7),
-        const Text(
+        Text(
           'Explora el catálogo y descubre tu próximo reto.',
-          style: TextStyle(color: AcademixColors.muted, height: 1.45),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            height: 1.45,
+          ),
         ),
         const SizedBox(height: 19),
         TextField(
           controller: searchController,
           onSubmitted: onSearch,
           textInputAction: TextInputAction.search,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
           decoration: InputDecoration(
             hintText: 'Buscar cursos...',
-            prefixIcon: const Icon(
+            prefixIcon: Icon(
               Icons.search,
-              color: AcademixColors.lavender,
+              color: Theme.of(context).colorScheme.primary,
             ),
             suffixIcon: IconButton(
               tooltip: 'Buscar',
               onPressed: () => onSearch(searchController.text),
-              icon: const Icon(
+              icon: Icon(
                 Icons.arrow_forward,
-                color: AcademixColors.lavender,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
           ),

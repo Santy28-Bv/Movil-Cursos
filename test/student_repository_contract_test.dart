@@ -62,6 +62,49 @@ void main() {
     await client.dispose();
     await server.close(force: true);
   });
+  test('compra simulada usa el JWT y precios del servidor', () async {
+    respond =
+        (_) => {
+          'success': true,
+          'data': {
+            'id': 'recibo-1',
+            'mode': 'simulated',
+            'currency': 'MXN',
+            'total': 100.50,
+          },
+        };
+    final learning = LearningRepository(client, api: api);
+    final receipt = await learning.checkout(['c1', 'c2'], 'test-key');
+    expect(receipt.total, 100.50);
+    expect(requests.single.method, 'POST');
+    expect(requests.single.uri.path, '/api/v1/checkout/simulated');
+    expect(requests.single.auth, 'Bearer token-ana');
+    expect(requests.single.body, {
+      'courseIds': ['c1', 'c2'],
+      'idempotencyKey': 'test-key',
+    });
+  });
+
+  test(
+    'comprueba propiedad en lote y consulta el contador de avisos',
+    () async {
+      respond =
+          (request) => {
+            'success': true,
+            'data':
+                request.uri.path.endsWith('unread-count')
+                    ? {'count': 35}
+                    : ['c2'],
+          };
+      final learning = LearningRepository(client, api: api);
+      final student = StudentRepository(client, api: api);
+      expect(await learning.ownedCourseIds(['c1', 'c2']), {'c2'});
+      expect(requests.first.uri.queryParameters, {'courseIds': 'c1,c2'});
+      expect(await student.unreadNoticeCount(), 35);
+      expect(requests.last.uri.path, '/api/v1/notifications/unread-count');
+      expect(requests.every((r) => r.auth == 'Bearer token-ana'), isTrue);
+    },
+  );
   test('catálogo usa la API pública paginada y no envía token', () async {
     respond =
         (_) => {

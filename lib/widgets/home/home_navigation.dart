@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../theme/academix_colors.dart';
 
 class HomeNavigation extends StatelessWidget {
   const HomeNavigation({
@@ -23,9 +22,11 @@ class HomeNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    decoration: const BoxDecoration(
-      color: AcademixColors.card,
-      border: Border(top: BorderSide(color: AcademixColors.border)),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface,
+      border: Border(
+        top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
     ),
     child: SafeArea(
       top: false,
@@ -95,12 +96,19 @@ class _NavAction extends StatelessWidget {
           Badge(
             isLabelVisible: badge > 0,
             label: Text(badge > 99 ? '99+' : '$badge'),
-            child: Icon(icon, size: 22, color: AcademixColors.lavender),
+            child: Icon(
+              icon,
+              size: 22,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(fontSize: 11, color: Colors.white70),
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),

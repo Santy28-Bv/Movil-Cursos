@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/supabase_settings.dart';
@@ -33,6 +34,11 @@ class AcademixApp extends StatelessWidget {
           theme: AcademixTheme.light,
           darkTheme: AcademixTheme.dark,
           themeMode: mode,
+          builder:
+              (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+                value: AcademixTheme.systemOverlay(Theme.of(context)),
+                child: child!,
+              ),
           home: const HomeScreen(),
         ),
   );

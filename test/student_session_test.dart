@@ -14,6 +14,56 @@ Course paid(String id, num? price) => Course(
 );
 
 void main() {
+  test('reintenta el mismo carrito y lo vacía solo al confirmar', () async {
+    final session = StudentSession()..bindUser('ana');
+    session.addToCart(paid('a', 10));
+    session.addToCart(paid('b', 20));
+    String? firstKey;
+    await expectLater(
+      session.checkout<void>((ids, key) async {
+        firstKey = key;
+        throw StateError('respuesta perdida');
+      }),
+      throwsStateError,
+    );
+    expect(session.cart.map((course) => course.id), ['a', 'b']);
+    final receipt = await session.checkout((ids, key) async {
+      expect(ids, ['a', 'b']);
+      expect(key, firstKey);
+      return 'recibo';
+    });
+    expect(receipt, 'recibo');
+    expect(session.cart, isEmpty);
+  });
+
+  test('la compra de otra sesión no borra el carrito actual', () async {
+    final session = StudentSession()..bindUser('ana');
+    session.addToCart(paid('a', 10));
+    final pending = Completer<String>();
+    final checkout = session.checkout((_, _) => pending.future);
+    expect(await session.checkout((_, _) async => 'duplicado'), isNull);
+    session.bindUser('luis');
+    session.addToCart(paid('b', 20));
+    pending.complete('recibo de Ana');
+    expect(await checkout, isNull);
+    expect(session.cart.single.id, 'b');
+  });
+
+  test('cuenta avisos sin leer fuera de la lista visible', () async {
+    final session = StudentSession()..bindUser('ana');
+    await session.refreshNotices(
+      () async => [
+        StudentNotice.fromJson({'id': '1'}),
+      ],
+      count: () async => 35,
+    );
+    expect(session.unreadCount, 35);
+    await session.markRead('1', () async {});
+    expect(session.unreadCount, 34);
+    await session.markAllRead(() async {});
+    expect(session.unreadCount, 0);
+  });
+
   test('carrito deduplica, suma centavos y elimina sin inscribir', () {
     final session = StudentSession()..bindUser('ana');
     session.addToCart(paid('a', 10.10));

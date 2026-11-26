@@ -84,3 +84,19 @@ Las pruebas de contratos usan un servidor HTTP local; las de pantallas comprueba
 el diseño y los flujos a 320 px. La reproducción y descarga nativa requieren
 una comprobación adicional en Android/iOS con una cuenta real inscrita. No se
 crean usuarios, inscripciones ni certificados remotos durante las pruebas locales.
+
+
+### APK para un teléfono físico
+
+El APK se conecta a `https://academix-api-eioa.onrender.com/api/v1` de forma
+predeterminada. Puedes usar `--dart-define=ACADEMIX_API_URL=...` si cambias de
+servidor.
+
+```bash
+flutter build apk --release
+```
+
+Instala `build/app/outputs/flutter-apk/app-release.apk`. También puedes descargar
+`Academix-Android` desde el apartado Actions del repositorio cuando se complete
+la compilación de `main`. Abre la app con Internet para guardar los destacados,
+las categorías y los diez primeros cursos. El APK funciona sin conexión USB.

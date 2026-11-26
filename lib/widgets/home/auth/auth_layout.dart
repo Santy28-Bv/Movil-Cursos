@@ -1,13 +1,5 @@
 import 'package:flutter/material.dart';
-
-class AuthColors {
-  static const background = Color(0xFF03040D);
-  static const card = Color(0xFF11182B);
-  static const input = Color(0xFF030716);
-  static const purple = Color(0xFF8520F7);
-  static const border = Color(0xFF35415C);
-  static const muted = Color(0xFF94A3B8);
-}
+import '../../../theme/academix_colors.dart';
 
 class AuthLayout extends StatelessWidget {
   final String title;
@@ -18,7 +10,7 @@ class AuthLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AuthColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -28,12 +20,14 @@ class AuthLayout extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(26),
                 decoration: BoxDecoration(
-                  color: AuthColors.card,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFF29334C)),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: AuthColors.purple.withValues(alpha: 0.12),
+                      color: AcademixColors.purple.withValues(alpha: 0.12),
                       blurRadius: 40,
                     ),
                   ],
@@ -46,8 +40,8 @@ class AuthLayout extends StatelessWidget {
                         Expanded(
                           child: Text(
                             title,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 25,
                               fontWeight: FontWeight.bold,
                             ),
@@ -55,9 +49,10 @@ class AuthLayout extends StatelessWidget {
                         ),
                         IconButton(
                           onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.close,
-                            color: AuthColors.muted,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -102,8 +97,8 @@ class AuthInput extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: Color(0xFFCBD5E1),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
@@ -114,13 +109,15 @@ class AuthInput extends StatelessWidget {
           obscureText: obscureText,
           keyboardType: keyboardType,
           validator: validator,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: AuthColors.muted),
+            hintStyle: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: AuthColors.input,
+            fillColor: Theme.of(context).colorScheme.surface,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 18,
               vertical: 17,
@@ -128,11 +125,16 @@ class AuthInput extends StatelessWidget {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AuthColors.border),
+              borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AuthColors.purple, width: 2),
+              borderSide: const BorderSide(
+                color: AcademixColors.purple,
+                width: 2,
+              ),
             ),
           ),
         ),

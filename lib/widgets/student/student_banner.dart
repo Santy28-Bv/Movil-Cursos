@@ -11,8 +11,15 @@ class StudentBanner extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 20),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(20),
-      gradient: const LinearGradient(
-        colors: [AcademixColors.purple, Color(0xFF86198F), Color(0xFF1D4ED8)],
+      gradient: LinearGradient(
+        stops: const [0, .48, 1],
+        colors: [
+          const Color(0xFF5B21B6),
+          AcademixColors.purple,
+          Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFFA21CAF)
+              : const Color(0xFF9333EA),
+        ],
       ),
     ),
     child: Column(

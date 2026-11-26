@@ -67,6 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late final ApiCourseRepository _courseRepository;
 
   late final CourseFeedController _feed;
+  late final AppLifecycleListener _lifecycle;
 
   @override
   void initState() {
@@ -85,6 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _isAuthenticated = _activeUserId != null;
     StudentSession.instance.bindUser(_activeUserId);
     StudentSession.instance.addListener(_studentChanged);
+    _lifecycle = AppLifecycleListener(onResume: _refreshNotices);
     _refreshNotices();
     _refreshProfile();
     _authSubscription = auth.onAuthStateChange.listen((state) {
@@ -112,8 +114,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _refreshNotices() async {
     if (_activeUserId == null) return;
     try {
-      await StudentSession.instance.refreshNotices(
-        StudentRepository(Supabase.instance.client).notifications,
+      await StudentSession.instance.refreshUnreadCount(
+        StudentRepository(Supabase.instance.client).unreadNoticeCount,
       );
     } catch (_) {
       // La pantalla de avisos permite reintentar y muestra el error de consulta.
@@ -250,7 +252,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // Un visitante puede elegir iniciar sesión o registrarse.
       showModalBottomSheet<void>(
         context: context,
-        backgroundColor: AcademixColors.card,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         isScrollControlled: true,
         useSafeArea: true,
         showDragHandle: true,
@@ -292,7 +294,7 @@ class _HomeScreenState extends State<HomeScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: AcademixColors.card,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -353,6 +355,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     _authSubscription.cancel();
     StudentSession.instance.removeListener(_studentChanged);
     _feed.removeListener(_afterFeedUpdate);
@@ -371,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AcademixColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
 
       // ================================================
       // NAVBAR INFERIOR
@@ -392,7 +395,9 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, _) {
             return RefreshIndicator(
               color: AcademixColors.purple,
-              onRefresh: _feed.refresh,
+              onRefresh: () async {
+                await Future.wait([_feed.refresh(), _refreshNotices()]);
+              },
 
               child: CustomScrollView(
                 controller: _scrollController,
@@ -416,6 +421,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 (_) => const NotificationsScreen(),
                               ),
                           unreadCount: StudentSession.instance.unreadCount,
+                          unreadCountKnown:
+                              StudentSession.instance.unreadCountKnown,
                         ),
 
                         // Portada.
