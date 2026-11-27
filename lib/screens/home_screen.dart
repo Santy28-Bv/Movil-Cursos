@@ -126,9 +126,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_activeUserId == null) return;
     try {
       final profile = await ProfileRepository(Supabase.instance.client).get();
-      StudentSession.instance.updateProfileName(
+      StudentSession.instance.updateProfile(
         '${profile['id']}',
         '${profile['fullName'] ?? ''}',
+        profile['avatarId'] as String?,
       );
     } catch (_) {
       /* Mi información permite reintentar la consulta. */
@@ -302,6 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
           (_) => AccountMenuSheet(
             name: fullName.isEmpty ? 'Mi cuenta' : fullName,
             email: user.email ?? '',
+            avatarId: StudentSession.instance.profileAvatar,
             onMyCourses: _openMyCourses,
             onHelp: (i) => _openPublic(HelpScreen(initialIndex: i)),
             onPrices: () => _openPublic(const PricesScreen()),
@@ -416,6 +418,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         HomeHeader(
                           onProfile: _openAccountMenu,
                           isAuthenticated: _isAuthenticated,
+                          avatarId: StudentSession.instance.profileAvatar,
+                          profileName: StudentSession.instance.profileName,
                           onNotifications:
                               () => _openStudent(
                                 (_) => const NotificationsScreen(),

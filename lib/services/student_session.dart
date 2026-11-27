@@ -16,10 +16,13 @@ class StudentSession extends ChangeNotifier {
   String? _checkoutKey;
   bool _checkingOut = false;
   String _profileName = '';
+  String? _profileAvatar;
   String get profileName => _profileName;
-  void updateProfileName(String owner, String name) {
+  String? get profileAvatar => _profileAvatar;
+  void updateProfile(String owner, String name, String? avatarId) {
     if (_userId != owner) return;
     _profileName = name;
+    _profileAvatar = avatarId;
     notifyListeners();
   }
 
@@ -45,6 +48,7 @@ class StudentSession extends ChangeNotifier {
     _checkoutKey = null;
     _checkingOut = false;
     _profileName = '';
+    _profileAvatar = null;
     notifyListeners();
   }
 

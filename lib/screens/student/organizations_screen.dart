@@ -115,7 +115,17 @@ class _OrganizationsScreenState extends State<OrganizationsScreen> {
                     child: ExpansionTile(
                       leading: const Icon(Icons.school_outlined),
                       title: Text('${row['name']}'),
-                      subtitle: Text('${row['description'] ?? ''}'),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (row['description'] case final String description
+                              when description.isNotEmpty)
+                            Text(description),
+                          Text(
+                            'Creada por ${row['creatorName'] ?? 'Persona no disponible'}',
+                          ),
+                        ],
+                      ),
                       children: [
                         if (row['subscription'] is Map &&
                             row['subscription']['active'] != true)

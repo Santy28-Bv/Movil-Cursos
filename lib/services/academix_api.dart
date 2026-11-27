@@ -94,12 +94,14 @@ class AcademixApi {
     String path, {
     Map<String, String> query = const {},
     bool authenticated = true,
+    bool allowSavedResponse = true,
   }) async =>
       (await _json(
         'GET',
         path,
         query: query,
         authenticated: authenticated,
+        allowSavedResponse: allowSavedResponse,
       ))['data'];
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) async =>
       (await _json('POST', path, body: body))['data'];
@@ -147,6 +149,7 @@ class AcademixApi {
     Map<String, String> query = const {},
     Map<String, dynamic>? body,
     bool authenticated = true,
+    bool allowSavedResponse = true,
   }) async {
     final firstCatalog =
         path == '/courses' &&
@@ -156,7 +159,10 @@ class AcademixApi {
     final cacheable =
         method == 'GET' &&
         !authenticated &&
-        (firstCatalog || path == '/courses/featured' || path == '/categories');
+        (firstCatalog ||
+            path == '/courses/featured' ||
+            path == '/categories' ||
+            path == '/plans');
     final owner = client.auth.currentUser?.id;
     final library =
         method == 'GET' &&
@@ -190,13 +196,18 @@ class AcademixApi {
         authenticated: authenticated,
       );
     } on ApiException catch (error) {
-      if (key != null && sameOwner() && error.code == 'NETWORK_ERROR') {
+      if (allowSavedResponse &&
+          key != null &&
+          sameOwner() &&
+          error.code == 'NETWORK_ERROR') {
         final saved = await _readPublicSnapshot(key);
         if (saved != null && sameOwner()) return saved;
       }
       rethrow;
     }
-    if (key != null && [502, 503, 504].contains(response.statusCode)) {
+    if (allowSavedResponse &&
+        key != null &&
+        [502, 503, 504].contains(response.statusCode)) {
       final saved = await _readPublicSnapshot(key);
       if (saved != null && sameOwner()) return saved;
     }

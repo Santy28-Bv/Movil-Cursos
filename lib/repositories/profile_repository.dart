@@ -24,7 +24,7 @@ class ProfileRepository {
 
   Future<Map<String, dynamic>> update(
     String owner,
-    Map<String, String> fields,
+    Map<String, String?> fields,
   ) async {
     if (client.auth.currentUser?.id != owner) {
       throw const ApiException(
@@ -32,7 +32,7 @@ class ProfileRepository {
         code: 'SESSION_CHANGED',
       );
     }
-    const allowed = {'fullName', 'phone', 'country', 'bio'};
+    const allowed = {'fullName', 'phone', 'country', 'bio', 'avatarId'};
     if (fields.isEmpty || fields.keys.any((key) => !allowed.contains(key))) {
       throw ArgumentError('Campo de perfil no permitido.');
     }

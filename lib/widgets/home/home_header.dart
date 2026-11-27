@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import '../student/profile_avatar.dart';
 
 class HomeHeader extends StatelessWidget {
   const HomeHeader({
     super.key,
     required this.onProfile,
     this.isAuthenticated = false,
+    this.avatarId,
+    this.profileName = "",
     this.onNotifications,
     this.unreadCount = 0,
     this.unreadCountKnown = true,
@@ -12,6 +15,8 @@ class HomeHeader extends StatelessWidget {
 
   final VoidCallback onProfile;
   final bool isAuthenticated;
+  final String? avatarId;
+  final String profileName;
   final VoidCallback? onNotifications;
   final int unreadCount;
   final bool unreadCountKnown;
@@ -57,13 +62,20 @@ class HomeHeader extends StatelessWidget {
         IconButton(
           onPressed: onProfile,
           tooltip: isAuthenticated ? 'Mi cuenta' : 'Iniciar sesión',
-          icon: Icon(
-            isAuthenticated
-                ? Icons.account_circle_outlined
-                : Icons.login_rounded,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            size: 27,
-          ),
+          icon:
+              isAuthenticated && avatarId != null
+                  ? ProfileAvatar(
+                    avatarId: avatarId,
+                    name: profileName,
+                    diameter: 30,
+                  )
+                  : Icon(
+                    isAuthenticated
+                        ? Icons.account_circle_outlined
+                        : Icons.login_rounded,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    size: 27,
+                  ),
         ),
       ],
     ),

@@ -1,0 +1,58 @@
+[
+  {
+    "id": "plus-monthly",
+    "name": "Academix Plus Mensual",
+    "audience": "person",
+    "priceMxn": 19.99,
+    "months": 1,
+    "features": [
+      "Cursos incluidos sin compra individual",
+      "Progreso y recursos",
+      "Certificados cuando correspondan",
+      "Acceso durante la vigencia del plan"
+    ],
+    "purchasable": true
+  },
+  {
+    "id": "plus-annual",
+    "name": "Academix Plus Anual",
+    "audience": "person",
+    "priceMxn": 199.99,
+    "months": 12,
+    "features": [
+      "12 meses de acceso",
+      "Cursos incluidos ilimitados",
+      "Progreso y certificados",
+      "Ahorro frente al plan mensual"
+    ],
+    "purchasable": true
+  },
+  {
+    "id": "organizations-monthly",
+    "name": "Academix Organizaciones",
+    "audience": "organization",
+    "priceMxn": 1000,
+    "months": 1,
+    "features": [
+      "Panel de organización",
+      "Roles de administrador, instructor y estudiante",
+      "Cursos institucionales con flujo de aprobación",
+      "Los estudiantes activos acceden sin pago adicional a los cursos de su organización"
+    ],
+    "purchasable": true
+  },
+  {
+    "id": "campus",
+    "name": "Academix Campus",
+    "audience": "organization",
+    "priceMxn": null,
+    "months": null,
+    "features": [
+      "Base multiusuario",
+      "Gobierno de cursos institucionales",
+      "Seguimiento de miembros",
+      "Gestión de miembros y cursos institucionales"
+    ],
+    "purchasable": false
+  }
+]

@@ -4,6 +4,7 @@ import '../../repositories/profile_repository.dart';
 import '../../services/academix_api.dart';
 import '../../services/student_session.dart';
 import '../../widgets/student/student_banner.dart';
+import '../../widgets/student/profile_avatar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.repository});
@@ -22,6 +23,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final String _owner;
   late Future<Map<String, dynamic>> _future;
   bool _saving = false;
+  bool _savingAvatar = false;
   @override
   void initState() {
     super.initState();
@@ -37,9 +39,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         for (final field in _fields.entries) {
           field.value.text = '${profile[field.key] ?? ''}';
         }
-        StudentSession.instance.updateProfileName(
+        StudentSession.instance.updateProfile(
           _owner,
           '${profile['fullName'] ?? ''}',
+          profile['avatarId'] as String?,
         );
       }
       return profile;
@@ -62,9 +65,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         for (final field in _fields.entries) field.key: field.value.text.trim(),
       });
       if (!mounted || _repository.client.auth.currentUser?.id != _owner) return;
-      StudentSession.instance.updateProfileName(
+      StudentSession.instance.updateProfile(
         _owner,
         '${profile['fullName'] ?? ''}',
+        profile['avatarId'] as String?,
       );
       setState(() {
         _future = Future.value(profile);
@@ -82,6 +86,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _changeAvatar(Map<String, dynamic> profile) async {
+    final name = '${profile['fullName'] ?? ''}';
+    final selection = await showProfileAvatarPicker(
+      context,
+      profile['avatarId'] as String?,
+      name,
+    );
+    if (!mounted ||
+        selection == null ||
+        _repository.client.auth.currentUser?.id != _owner) {
+      return;
+    }
+    setState(() => _savingAvatar = true);
+    try {
+      final updated = await _repository.update(_owner, {
+        'avatarId': selection.isEmpty ? null : selection,
+      });
+      if (!mounted || _repository.client.auth.currentUser?.id != _owner) return;
+      StudentSession.instance.updateProfile(
+        _owner,
+        name,
+        updated['avatarId'] as String?,
+      );
+      setState(() => _future = Future.value(updated));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(studentError(error, 'No pudimos guardar tu avatar.')),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingAvatar = false);
     }
   }
 
@@ -125,6 +166,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const StudentBanner(
                 title: 'Tu perfil',
                 message: 'Tu información personal en Academix.',
+              ),
+              Center(
+                child: Column(
+                  children: [
+                    IconButton(
+                      tooltip: 'Editar avatar de perfil',
+                      onPressed:
+                          _saving || _savingAvatar
+                              ? null
+                              : () => _changeAvatar(profile),
+                      icon: ProfileAvatar(
+                        avatarId: profile['avatarId'] as String?,
+                        name: '${profile['fullName'] ?? ''}',
+                        diameter: 76,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed:
+                          _saving || _savingAvatar
+                              ? null
+                              : () => _changeAvatar(profile),
+                      child: Text(
+                        _savingAvatar ? 'Guardando avatar…' : 'Cambiar avatar',
+                      ),
+                    ),
+                  ],
+                ),
               ),
               Text(
                 '${profile['email'] ?? ''}',
@@ -172,7 +240,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               FilledButton.icon(
-                onPressed: _saving ? null : _save,
+                onPressed: _saving || _savingAvatar ? null : _save,
                 icon: const Icon(Icons.save_outlined),
                 label: Text(_saving ? 'Guardando…' : 'Guardar cambios'),
               ),

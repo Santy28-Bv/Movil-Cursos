@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../theme/theme_controller.dart';
+import '../../student/profile_avatar.dart';
 
 class AccountMenuSheet extends StatelessWidget {
   final String name;
   final String email;
+  final String? avatarId;
   final VoidCallback onSignOut;
   final VoidCallback onSwitchAccount;
   final VoidCallback onMyCourses;
@@ -20,6 +22,7 @@ class AccountMenuSheet extends StatelessWidget {
     super.key,
     required this.name,
     required this.email,
+    this.avatarId,
     required this.onSignOut,
     required this.onSwitchAccount,
     required this.onMyCourses,
@@ -133,16 +136,7 @@ class AccountMenuSheet extends StatelessWidget {
 
             Row(
               children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor:
-                      Theme.of(context).colorScheme.primaryContainer,
-                  child: Icon(
-                    Icons.person,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 30,
-                  ),
-                ),
+                ProfileAvatar(avatarId: avatarId, name: name, diameter: 56),
 
                 const SizedBox(width: 15),
 
