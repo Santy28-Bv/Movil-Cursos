@@ -1,3 +1,4 @@
+import 'package:academix/widgets/student/profile_avatar.dart';
 import 'package:academix/theme/academix_theme.dart';
 import 'package:academix/widgets/home/home_header.dart';
 import 'package:academix/widgets/home/home_navigation.dart';
@@ -73,6 +74,58 @@ void main() {
     await tester.tap(find.byIcon(Icons.notifications_outlined));
     expect(cartOpened, isTrue);
     expect(noticesOpened, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('la galería filtra, conserva la elección y guarda a 320 px', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    String? choice;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AcademixTheme.dark,
+        home: Scaffold(
+          body: Builder(
+            builder:
+                (context) => TextButton(
+                  onPressed:
+                      () async =>
+                          choice = await showProfileAvatarPicker(
+                            context,
+                            'nova',
+                            'Marco',
+                          ),
+                  child: const Text('Cambiar avatar'),
+                ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Cambiar avatar'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Guardar avatar'),
+          )
+          .onPressed,
+      isNull,
+    );
+    final lab = find.widgetWithText(ChoiceChip, 'Laboratorio');
+    await tester.ensureVisible(lab);
+    await tester.pumpAndSettle();
+    await tester.tap(lab);
+    await tester.pumpAndSettle();
+    expect(find.text('Nova'), findsNothing);
+    await tester.tap(find.text('Prisma'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Guardar avatar'));
+    await tester.pumpAndSettle();
+    expect(choice, 'prisma');
     expect(tester.takeException(), isNull);
   });
 }
