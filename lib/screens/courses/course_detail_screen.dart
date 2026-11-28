@@ -1,3 +1,4 @@
+import '../../widgets/courses/lesson_video_player.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -30,6 +31,15 @@ class CourseDetailScreen extends StatefulWidget {
 }
 
 class _CourseDetailScreenState extends State<CourseDetailScreen> {
+  bool _showIntro = false;
+
+  Uri? _introUri(Course course) {
+    final uri = Uri.tryParse(course.videoUrl);
+    return uri != null && uri.scheme == 'https' && uri.hasAuthority
+        ? uri
+        : null;
+  }
+
   late final ApiCourseRepository _catalog;
   late final LearningRepository _learning;
   late final StreamSubscription<AuthState> _subscription;
@@ -319,40 +329,54 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: 22),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child:
-                          course.imageUrl.isEmpty
-                              ? ColoredBox(
-                                color:
-                                    Theme.of(
-                                      context,
-                                    ).colorScheme.primaryContainer,
-                                child: Icon(
-                                  Icons.school_outlined,
-                                  size: 64,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                              )
-                              : Image.network(
-                                course.imageUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder:
-                                    (_, __, ___) => ColoredBox(
-                                      color:
-                                          Theme.of(
-                                            context,
-                                          ).colorScheme.primaryContainer,
-                                      child: Icon(
-                                        Icons.school_outlined,
-                                        size: 64,
+                  if ((_showIntro ? _introUri(course) : null)
+                      case final Uri uri)
+                    LessonVideoPlayer(key: ValueKey(uri), uri: uri)
+                  else
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child:
+                            course.imageUrl.isEmpty
+                                ? ColoredBox(
+                                  color:
+                                      Theme.of(
+                                        context,
+                                      ).colorScheme.primaryContainer,
+                                  child: Icon(
+                                    Icons.school_outlined,
+                                    size: 64,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                )
+                                : Image.network(
+                                  course.imageUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder:
+                                      (_, __, ___) => ColoredBox(
+                                        color:
+                                            Theme.of(
+                                              context,
+                                            ).colorScheme.primaryContainer,
+                                        child: Icon(
+                                          Icons.school_outlined,
+                                          size: 64,
+                                        ),
                                       ),
-                                    ),
-                              ),
+                                ),
+                      ),
                     ),
-                  ),
+                  if (!_showIntro && _introUri(course) != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: OutlinedButton.icon(
+                        onPressed: () => setState(() => _showIntro = true),
+                        icon: const Icon(Icons.play_circle_outline),
+                        label: const Text('Ver video introductorio'),
+                      ),
+                    ),
                 ],
               ),
             ),

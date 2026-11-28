@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/student_data.dart';
 import '../../repositories/student_repository.dart';
 import '../../services/academix_api.dart';
+import '../../widgets/student/certificate_document.dart';
 
 class VerifyCertificateScreen extends StatefulWidget {
   const VerifyCertificateScreen({super.key});
@@ -80,28 +81,17 @@ class _VerifyCertificateScreenState extends State<VerifyCertificateScreen> {
             padding: const EdgeInsets.only(top: 20),
             child: Text(_error!),
           ),
-        if (_certificate != null)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.verified_outlined, size: 48),
-                  const SizedBox(height: 16),
-                  const Text('Certificado válido'),
-                  Text(
-                    _certificate!.course,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(_certificate!.recipient),
-                  Text(_certificate!.issuer),
-                  Text(_certificate!.issuedAt.split('T').first),
-                ],
-              ),
+        if (_certificate != null) ...[
+          const SizedBox(height: 18),
+          const Text('Certificado válido'),
+          const SizedBox(height: 8),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 960),
+              child: CertificateDocument(certificate: _certificate!),
             ),
           ),
+        ],
       ],
     ),
   );

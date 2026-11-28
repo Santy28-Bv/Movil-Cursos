@@ -106,7 +106,12 @@ class Course {
           ) ??
           0,
       rating: double.tryParse(read(['rating'], fallback: '0')) ?? 0,
-      videoUrl: read(['preview_video_url', 'video_url', 'url_video']),
+      videoUrl: read([
+        'introVideoUrl',
+        'preview_video_url',
+        'video_url',
+        'url_video',
+      ]),
       organizationId: read(['organization_id']),
       shortDescription: read([
         'shortDescription',
